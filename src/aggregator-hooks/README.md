@@ -168,9 +168,9 @@ Singleton hook routes swaps through **WOOFi's WooPPV2**, a synthetic proactive m
 #### Key Details
 
 - **Exact-input only**: WooPP only prices exact-in swaps; exact-out quotes and swaps revert (`ExactOutputNotSupported`)
-- **ERC20 only**: native currency reverts (`NativeCurrencyNotSupported`); use WETH
+- **ERC20 only**: native-currency pools fail to initialize (`TokensNotSupported`); use WETH
 - **Push model, no approvals**: input goes from the PoolManager straight to WooPP and WooPP sends the output straight to the PoolManager
-- **Pair registration**: each token must be WooPP's quote token or a base token configured in WooPP (`maxNotionalSwap > 0`), and WooPP must price the pair at initialization (`tryQuery` probe; fails while the oracle is stale)
+- **Pair registration**: each token must be WooPP's quote token or a base token configured in WooPP (`maxNotionalSwap > 0`)
 - **Quotes**: `WooPPV2.query` plus the swap-only checks `query` skips — pool pause, blacklist (hook and `tx.origin`), `maxGasPrice`, and, for base → quote, the combined `output + fee` against the quote reserve (`query` checks them separately while `swap` subtracts their sum). A quote that passes is fillable in the same state
 - **Reverts by design** when the Wooracle price is stale, out of its Chainlink bound or paused, or when a swap exceeds `maxNotionalSwap` / `maxGamma` / `capBal`: routers should skip or split
 - **Fees**: WooPP's fee rate multiplier is `max(multiplier[tx.origin], multiplier[hook])`, so WOOFi can price Uniswap flow separately via `setFeeRateMultiplier(hook, x)`; `rebateTo` (constructor argument) is passed to every swap for attribution

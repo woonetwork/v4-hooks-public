@@ -40,14 +40,13 @@ contract WOOFiAggregator is BaseAggregatorHook {
     /// @notice Maps Uniswap V4 pool IDs to their token addresses
     mapping(PoolId => PoolTokens) public poolIdToTokens;
 
-    /// @notice Canonical pool per token pair (key = keccak256(abi.encode(ordered token0, ordered token1)))
-    /// @dev Enforces one pool per pair
-    mapping(bytes32 => PoolId) private _canonicalPoolByPair;
+    /// @notice Canonical pool per token pair; enforces one pool per pair
+    mapping(address token0 => mapping(address token1 => PoolId)) public poolIdByPair;
 
     error ExactOutputNotSupported();
     error NativeCurrencyNotSupported();
     error TokensNotSupported(address token0, address token1);
-    error PairAlreadyHasCanonicalPool(PoolId existingPoolId, address token0, address token1);
+    error PairAlreadyHasCanonicalPool(PoolId existingPoolId);
     error WooPPPaused();
     error Blacklisted();
     error GasPriceTooHigh();
@@ -92,34 +91,25 @@ contract WOOFiAggregator is BaseAggregatorHook {
         _assertSwappable(tokenIn, tokenOut, amountUnspecified);
     }
 
+    /// @dev Native currency is rejected too: address(0) is neither the quote token nor a configured base token
     function _beforeInitialize(address, PoolKey calldata key, uint160) internal override returns (bytes4) {
-        // Native currency always sorts as currency0
-        if (key.currency0.isAddressZero()) revert NativeCurrencyNotSupported();
-
         address token0 = Currency.unwrap(key.currency0);
         address token1 = Currency.unwrap(key.currency1);
 
-        // Every non-quote token must be configured as a base token in WooPP
         address quote = wooPP.quoteToken();
         if (!_isSupportedToken(token0, quote) || !_isSupportedToken(token1, quote)) {
             revert TokensNotSupported(token0, token1);
         }
 
-        // Confirm WooPP can actually price the pair (oracle knows every base token)
-        try wooPP.tryQuery(token0, token1, 1) {}
-        catch {
-            revert TokensNotSupported(token0, token1);
-        }
+        // The PoolManager sorts currencies, so (token0, token1) identifies the pair
+        PoolId existing = poolIdByPair[token0][token1];
+        if (PoolId.unwrap(existing) != bytes32(0)) revert PairAlreadyHasCanonicalPool(existing);
 
-        // Enforce one canonical pool per token pair
-        bytes32 pairKey = _canonicalPairKey(token0, token1);
-        PoolId existing = _canonicalPoolByPair[pairKey];
-        if (PoolId.unwrap(existing) != bytes32(0)) revert PairAlreadyHasCanonicalPool(existing, token0, token1);
-        _canonicalPoolByPair[pairKey] = key.toId();
+        PoolId poolId = key.toId();
+        poolIdByPair[token0][token1] = poolId;
+        poolIdToTokens[poolId] = PoolTokens({token0: token0, token1: token1});
 
-        poolIdToTokens[key.toId()] = PoolTokens({token0: token0, token1: token1});
-
-        emit AggregatorPoolRegistered(key.toId());
+        emit AggregatorPoolRegistered(poolId);
         pollTokenJar();
         return IHooks.beforeInitialize.selector;
     }
@@ -156,11 +146,10 @@ contract WOOFiAggregator is BaseAggregatorHook {
     ///      - pool pause (`whenNotPaused`), blacklist of `tx.origin`/`msg.sender`, and `tx.gasprice <= maxGasPrice`
     ///      - base → quote: `query` checks the output and the swap fee against the quote reserve separately, while
     ///        `swap` subtracts their sum, so e.g. output 99 + fee 1 against reserve 99 quotes but underflows on swap.
-    ///      For base → quote the pre-fee amount `Q = output + fee` is rebuilt from the output by inverting
-    ///      `output = f(Q) = Q - floor(Q * r / 1e10)`. Since `f(Q) >= Q * (1 - r / 1e10)`, every `Q` with
-    ///      `f(Q) = output` is at most `ceil(output * 1e10 / (1e10 - r))`; stepping that bound down while
-    ///      `f(gross) > output` (at most twice) yields the largest such `Q`. When two `Q` map to the same output the
-    ///      larger is checked, so the bound may reject a fillable swap by 1 wei but never accepts an unfillable one.
+    ///      For base → quote the pre-fee amount `Q = output + fee` is bounded from the output: since
+    ///      `output = Q - floor(Q * r / 1e10) >= Q * (1 - r / 1e10)`, `ceil(output * 1e10 / (1e10 - r)) >= Q`. The
+    ///      bound never accepts an unfillable swap and, for fee rates up to 50%, rejects a fillable one only when
+    ///      the quote reserve is within 2 wei of `Q`.
     ///      quote → base and base → base reserve checks in `query` already match `swap`.
     ///      Wooracle pause and staleness already make `query` revert.
     function _assertSwappable(address tokenIn, address tokenOut, uint256 amountOut) internal view {
@@ -172,15 +161,9 @@ contract WOOFiAggregator is BaseAggregatorHook {
         if (tokenOut != quote) return;
 
         (, uint16 feeRate,,,) = wooPP.tokenInfos(tokenIn);
-        uint256 rate = uint256(feeRate) * _feeRateMultiplier();
-        // rate >= 1e10 means fee >= pre-fee amount; `query` then either underflows or yields output 0 with
-        // fee == pre-fee amount, which its own fee-vs-reserve check already covers.
-        if (rate >= FEE_DENOMINATOR) return;
-
-        uint256 gross = FullMath.mulDivRoundingUp(amountOut, FEE_DENOMINATOR, FEE_DENOMINATOR - rate);
-        while (gross - gross * rate / FEE_DENOMINATOR > amountOut) {
-            --gross;
-        }
+        // A fee rate of 100% or more underflows here; such a swap outputs nothing anyway
+        uint256 gross =
+            FullMath.mulDivRoundingUp(amountOut, FEE_DENOMINATOR, FEE_DENOMINATOR - feeRate * _feeRateMultiplier());
         (uint192 quoteReserve,,,,) = wooPP.tokenInfos(quote);
         if (gross > quoteReserve) revert InsufficientQuoteReserve();
     }
@@ -198,12 +181,6 @@ contract WOOFiAggregator is BaseAggregatorHook {
         if (token == quote) return true;
         (,,, uint128 maxNotionalSwap,) = wooPP.tokenInfos(token);
         return maxNotionalSwap > 0;
-    }
-
-    /// @notice Returns the canonical storage key for a token pair (ordered by address)
-    function _canonicalPairKey(address token0, address token1) private pure returns (bytes32) {
-        (address t0, address t1) = token0 < token1 ? (token0, token1) : (token1, token0);
-        return keccak256(abi.encode(t0, t1));
     }
 
     receive() external payable override {

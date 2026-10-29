@@ -201,14 +201,14 @@ contract WOOFiAggregatorForkTest is WOOFiForkBase {
         vm.expectRevert();
         _swap(WETH, USDC, amountIn);
 
-        // output + fee (+1 for the case where two pre-fee amounts round to the same output): quote and swap go through
-        deal(USDC, owner, 2);
+        // output + fee + 2 (the hook's pre-fee bound is conservative by up to 2 wei): quote and swap go through
+        deal(USDC, owner, 3);
         vm.startPrank(owner);
-        IERC20(USDC).approve(address(wooPP), 2);
-        (bool ok,) = address(wooPP).call(abi.encodeWithSignature("deposit(address,uint256)", USDC, 2));
+        IERC20(USDC).approve(address(wooPP), 3);
+        (bool ok,) = address(wooPP).call(abi.encodeWithSignature("deposit(address,uint256)", USDC, 3));
         vm.stopPrank();
         assertTrue(ok, "deposit");
-        assertEq(wooPP.poolSize(USDC), gross + 1);
+        assertEq(wooPP.poolSize(USDC), gross + 2);
         assertEq(_assertQuoteMatchesSwap(WETH, USDC, amountIn), out);
     }
 }

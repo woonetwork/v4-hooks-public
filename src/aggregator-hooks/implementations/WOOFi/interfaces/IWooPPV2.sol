@@ -26,9 +26,6 @@ interface IWooPPV2 {
     /// @notice Quotes `fromAmount` of `fromToken` to `toToken`, checking cap and reserve
     function query(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount);
 
-    /// @notice Quotes `fromAmount` of `fromToken` to `toToken` without checking reserves
-    function tryQuery(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount);
-
     /// @notice Swaps `fromAmount` of `fromToken` (already transferred to the pool) for `toToken`, sent to `to`
     function swap(
         address fromToken,

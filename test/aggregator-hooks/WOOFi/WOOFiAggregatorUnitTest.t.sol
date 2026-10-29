@@ -261,6 +261,7 @@ contract WOOFiAggregatorUnitTest is Test {
             address(weth) < address(wbtc) ? (address(weth), address(wbtc)) : (address(wbtc), address(weth));
         assertEq(t0, e0);
         assertEq(t1, e1);
+        assertEq(PoolId.unwrap(hook.poolIdByPair(e0, e1)), PoolId.unwrap(id));
     }
 
     function test_initialize_nativeCurrency_reverts() public {
@@ -289,12 +290,15 @@ contract WOOFiAggregatorUnitTest is Test {
         manager.initialize(_key(address(weth), address(other), 0), SQRT_PRICE_1_1);
     }
 
-    function test_initialize_oracleInfeasible_reverts() public {
+    function test_initialize_oracleInfeasible_succeeds() public {
+        // Registration only needs WooPP's token config; an unpriced token simply fails to quote
         MockERC20 other = new MockERC20("Other", "OTH", 18);
         wooPP.setTokenInfo(address(other), FEE_RATE, MAX_GAMMA, MAX_NOTIONAL, type(uint192).max);
         wooracle.setState(address(other), 1e8, 0, 0, false);
+        PoolKey memory key = _key(address(other), address(usdc), 0);
+        manager.initialize(key, SQRT_PRICE_1_1);
         vm.expectRevert();
-        manager.initialize(_key(address(other), address(usdc), 0), SQRT_PRICE_1_1);
+        hook.quote(true, -1e18, key.toId());
     }
 
     function test_initialize_duplicatePair_reverts() public {
@@ -416,7 +420,7 @@ contract WOOFiAggregatorUnitTest is Test {
         assertEq(wooPP.poolSize(address(usdc)), 0, "quote reserve fully used");
     }
 
-    /// @dev The rebuilt pre-fee amount is sound (reserve Q - 1 is rejected) and tight (reserve Q + 1 is accepted)
+    /// @dev The pre-fee bound is sound (reserve Q - 1 is rejected) and tight to 2 wei (reserve Q + 2 is accepted)
     function testFuzz_boundary_reserveBoundIsTight(uint256 amountIn, uint16 feeRate, uint256 multiplier) public {
         amountIn = bound(amountIn, 1e12, 1000e18);
         feeRate = uint16(bound(feeRate, 1, 10_000));
@@ -435,7 +439,7 @@ contract WOOFiAggregatorUnitTest is Test {
         vm.expectRevert(WOOFiAggregator.InsufficientQuoteReserve.selector);
         hook.quote(address(weth) < address(usdc), -int256(amountIn), id);
 
-        _deposit(usdc, 2);
+        _deposit(usdc, 3);
         assertEq(_assertQuoteMatchesSwap(weth, usdc, amountIn), out);
     }
 
@@ -521,11 +525,13 @@ contract WOOFiAggregatorUnitTest is Test {
         assertEq(usdc.balanceOf(alice) - outBefore, quoted, "output matches origin quote");
     }
 
-    function test_fullFee_quoteIsZero() public {
-        // feeRate 50% * multiplier 2x = 100% fee: output is 0 and the reserve bound is skipped
+    function test_fullFee_quoteReverts() public {
+        // feeRate 50% * multiplier 2x = 100% fee: the swap would output nothing, so the quote reverts
         wooPP.setFeeRate(address(weth), 50_000);
         wooPP.setFeeRateMultiplier(address(hook), 2e5);
-        assertEq(_quote(weth, usdc, 1e18), 0);
+        PoolId id = _key(address(weth), address(usdc), 0).toId();
+        vm.expectRevert();
+        hook.quote(address(weth) < address(usdc), -1e18, id);
     }
 
     // ── Protocol fee ───────────────────────────────────────────────────────────
