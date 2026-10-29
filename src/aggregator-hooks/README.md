@@ -168,12 +168,14 @@ Singleton hook routes swaps through **WOOFi's WooPPV2**, a synthetic proactive m
 #### Key Details
 
 - **Exact-input only**: WooPP only prices exact-in swaps; exact-out quotes and swaps revert (`ExactOutputNotSupported`)
+- **One pool per pair**: pools must use `fee = 0` and `tickSpacing = 1` (both unused, as the hook fills the whole swap), so each pair has exactly one PoolKey
 - **ERC20 only**: native-currency pools fail to initialize (`TokensNotSupported`); use WETH
 - **Push model, no approvals**: input goes from the PoolManager straight to WooPP and WooPP sends the output straight to the PoolManager
 - **Pair registration**: each token must be WooPP's quote token or a base token configured in WooPP (`maxNotionalSwap > 0`)
-- **Quotes**: `WooPPV2.query` plus the swap-only checks `query` skips — pool pause, blacklist (hook and `tx.origin`), `maxGasPrice`, and, for base → quote, the combined `output + fee` against the quote reserve (`query` checks them separately while `swap` subtracts their sum). A quote that passes is fillable in the same state
+- **Quotes**: `WooPPV2.query` plus the pool-pause check that `swap` enforces but `query` skips
+- **Assumes `feeRate == 0`**: WooPP is configured on every chain to charge through the Wooracle spread with a zero `feeRate`. With a non-zero fee, `query` checks a base → quote output and its fee against the quote reserve separately while `swap` subtracts their sum, so a swap near that reserve could quote but revert
 - **Reverts by design** when the Wooracle price is stale, out of its Chainlink bound or paused, or when a swap exceeds `maxNotionalSwap` / `maxGamma` / `capBal`: routers should skip or split
-- **Fees**: WooPP's fee rate multiplier is `max(multiplier[tx.origin], multiplier[hook])`, so WOOFi can price Uniswap flow separately via `setFeeRateMultiplier(hook, x)`. Uniswap flow is identifiable in WooPP's `WooSwap` events by `from == hook`
+- **Attribution**: Uniswap flow is identifiable in WooPP's `WooSwap` events by `from == hook`
 - **Migration**: a WooPP migration to a new pool address requires a new hook deployment
 
 #### Defined interfaces

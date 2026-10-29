@@ -29,7 +29,6 @@ interface IWooPPV2Admin is IWooPPV2 {
         external;
     function setFeeRate(address token, uint16 rate) external;
     function setMaxGasPrice(uint256 maxGasPrice) external;
-    function setBlacklist(address user, bool flag) external;
     function setFeeRateMultiplier(address user, uint256 feeRateMultiplier) external;
     function deposit(address token, uint256 amount) external;
     function withdraw(address token, uint256 amount) external;
@@ -253,13 +252,13 @@ contract WOOFiAggregatorUnitTest is Test {
     // ── Initialization ─────────────────────────────────────────────────────────
 
     function test_initialize_registersPool() public view {
-        PoolId id = _key(address(weth), address(wbtc), 0).toId();
-        (address t0, address t1) = hook.poolIdToTokens(id);
-        (address e0, address e1) =
-            address(weth) < address(wbtc) ? (address(weth), address(wbtc)) : (address(wbtc), address(weth));
-        assertEq(t0, e0);
-        assertEq(t1, e1);
-        assertEq(PoolId.unwrap(hook.poolIdByPair(e0, e1)), PoolId.unwrap(id));
+        PoolKey memory expected = _key(address(weth), address(wbtc), 0);
+        (Currency c0, Currency c1, uint24 fee, int24 tickSpacing, IHooks hooks) = hook.poolKeys(expected.toId());
+        assertEq(Currency.unwrap(c0), Currency.unwrap(expected.currency0));
+        assertEq(Currency.unwrap(c1), Currency.unwrap(expected.currency1));
+        assertEq(fee, 0);
+        assertEq(tickSpacing, 1);
+        assertEq(address(hooks), address(hook));
     }
 
     function test_initialize_nativeCurrency_reverts() public {
@@ -299,9 +298,22 @@ contract WOOFiAggregatorUnitTest is Test {
         hook.quote(true, -1e18, key.toId());
     }
 
-    function test_initialize_duplicatePair_reverts() public {
+    function test_initialize_nonZeroFee_reverts() public {
+        // A second pool for the same pair would need a different fee or tick spacing, both rejected
         vm.expectRevert();
         manager.initialize(_key(address(weth), address(usdc), 3000), SQRT_PRICE_1_1);
+    }
+
+    function test_initialize_tickSpacingNotOne_reverts() public {
+        PoolKey memory key = _key(address(weth), address(usdc), 0);
+        key.tickSpacing = 10;
+        vm.expectRevert();
+        manager.initialize(key, SQRT_PRICE_1_1);
+    }
+
+    function test_initialize_samePairTwice_reverts() public {
+        vm.expectRevert();
+        manager.initialize(_key(address(weth), address(usdc), 0), SQRT_PRICE_1_1);
     }
 
     // ── Exact-in swaps ─────────────────────────────────────────────────────────
@@ -386,95 +398,12 @@ contract WOOFiAggregatorUnitTest is Test {
         hook.pseudoTotalValueLocked(PoolId.wrap(bytes32(uint256(1))));
     }
 
-    // ── Quote executability: base → quote reserve boundary ─────────────────────
-
-    /// @dev Price 100 USDC/WETH, 1% fee, no spread/slippage: selling 1 WETH gives Q = 100 USDC pre-fee,
-    ///      fee = 1 USDC, output = 99 USDC. Leaves the quote reserve at `reserve`.
-    function _setUpBoundary(uint256 reserve) internal {
-        wooracle.setState(address(weth), 100e8, 0, 0, true);
-        wooPP.setFeeRate(address(weth), 1000);
-        wooPP.withdraw(address(usdc), USDC_RESERVE - reserve);
-    }
-
-    function test_boundary_queryPassesButSwapUnderflows_quoteReverts() public {
-        _setUpBoundary(99e6);
-
-        // WooPPV2.query checks output (99) and fee (1) against reserve (99) separately and passes
-        assertEq(wooPP.query(address(weth), address(usdc), 1e18), 99e6, "raw query passes");
-
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.expectRevert(WOOFiAggregator.InsufficientQuoteReserve.selector);
-        hook.quote(address(weth) < address(usdc), -1e18, id);
-
-        // ...while the swap subtracts output + fee (100) from the reserve (99) and underflows
-        vm.expectRevert();
-        _swap(weth, usdc, -1e18);
-    }
-
-    function test_boundary_exactReserve_quoteAndSwapSucceed() public {
-        _setUpBoundary(100e6);
-        uint256 quoted = _assertQuoteMatchesSwap(weth, usdc, 1e18);
-        assertEq(quoted, 99e6);
-        assertEq(wooPP.poolSize(address(usdc)), 0, "quote reserve fully used");
-    }
-
-    /// @dev The pre-fee bound is sound (reserve Q - 1 is rejected) and tight to 2 wei (reserve Q + 2 is accepted)
-    function testFuzz_boundary_reserveBoundIsTight(uint256 amountIn, uint16 feeRate, uint256 multiplier) public {
-        amountIn = bound(amountIn, 1e12, 1000e18);
-        feeRate = uint16(bound(feeRate, 1, 10_000));
-        multiplier = bound(multiplier, 1e5, 4e5);
-        wooPP.setFeeRateMultiplier(address(hook), multiplier);
-        wooPP.setFeeRateMultiplier(address(this), multiplier); // so the raw queries below price like the hook
-
-        wooPP.setFeeRate(address(weth), 0);
-        uint256 gross = wooPP.query(address(weth), address(usdc), amountIn);
-        wooPP.setFeeRate(address(weth), feeRate);
-        uint256 out = wooPP.query(address(weth), address(usdc), amountIn);
-        vm.assume(out < gross); // a fee was actually charged
-
-        wooPP.withdraw(address(usdc), USDC_RESERVE - (gross - 1));
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.expectRevert(WOOFiAggregator.InsufficientQuoteReserve.selector);
-        hook.quote(address(weth) < address(usdc), -int256(amountIn), id);
-
-        _deposit(usdc, 3);
-        assertEq(_assertQuoteMatchesSwap(weth, usdc, amountIn), out);
-    }
-
     // ── Quote executability: swap-only conditions ──────────────────────────────
 
     function test_wooPPPaused_quoteAndSwapRevert() public {
         wooPP.pause();
         PoolId id = _key(address(weth), address(usdc), 0).toId();
         vm.expectRevert(WOOFiAggregator.WooPPPaused.selector);
-        hook.quote(address(weth) < address(usdc), -1e18, id);
-        vm.expectRevert();
-        _swap(weth, usdc, -1e18);
-    }
-
-    function test_hookBlacklisted_quoteAndSwapRevert() public {
-        wooPP.setBlacklist(address(hook), true);
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.expectRevert(WOOFiAggregator.Blacklisted.selector);
-        hook.quote(address(weth) < address(usdc), -1e18, id);
-        vm.expectRevert();
-        _swap(weth, usdc, -1e18);
-    }
-
-    function test_originBlacklisted_quoteAndSwapRevert() public {
-        wooPP.setBlacklist(alice, true);
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.prank(alice, alice);
-        vm.expectRevert(WOOFiAggregator.Blacklisted.selector);
-        hook.quote(address(weth) < address(usdc), -1e18, id);
-        vm.expectRevert();
-        _swap(weth, usdc, -1e18);
-    }
-
-    function test_gasPriceTooHigh_quoteAndSwapRevert() public {
-        vm.txGasPrice(MAX_GAS_PRICE + 1);
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.expectRevert(WOOFiAggregator.GasPriceTooHigh.selector);
         hook.quote(address(weth) < address(usdc), -1e18, id);
         vm.expectRevert();
         _swap(weth, usdc, -1e18);
@@ -523,15 +452,6 @@ contract WOOFiAggregatorUnitTest is Test {
         assertEq(usdc.balanceOf(alice) - outBefore, quoted, "output matches origin quote");
     }
 
-    function test_fullFee_quoteReverts() public {
-        // feeRate 50% * multiplier 2x = 100% fee: the swap would output nothing, so the quote reverts
-        wooPP.setFeeRate(address(weth), 50_000);
-        wooPP.setFeeRateMultiplier(address(hook), 2e5);
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.expectRevert();
-        hook.quote(address(weth) < address(usdc), -1e18, id);
-    }
-
     // ── Protocol fee ───────────────────────────────────────────────────────────
 
     function test_protocolFee_exactIn() public {
@@ -551,11 +471,11 @@ contract WOOFiAggregatorUnitTest is Test {
     // ── Fuzz ───────────────────────────────────────────────────────────────────
 
     /// @dev quote() succeeds ⇒ the same swap succeeds immediately after and pays out exactly the quote
-    function testFuzz_quoteImpliesSwap_sellBase(uint256 amountIn, uint256 reserveLeft, uint16 feeRate) public {
+    function testFuzz_quoteImpliesSwap_sellBase(uint256 amountIn, uint256 reserveLeft) public {
         amountIn = bound(amountIn, 1e9, 3000e18);
         reserveLeft = bound(reserveLeft, 0, USDC_RESERVE);
-        feeRate = uint16(bound(feeRate, 0, 1000));
-        wooPP.setFeeRate(address(weth), feeRate);
+        // WooPP's production configuration: fees are charged through the oracle spread, not feeRate
+        wooPP.setFeeRate(address(weth), 0);
         wooPP.withdraw(address(usdc), USDC_RESERVE - reserveLeft);
         _checkQuoteImpliesSwap(weth, usdc, amountIn);
     }

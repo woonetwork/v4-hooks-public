@@ -37,10 +37,4 @@ interface IWooPPV2 {
     ) external returns (uint256 realToAmount);
 
     function paused() external view returns (bool);
-
-    function blacklist(address user) external view returns (bool);
-
-    function maxGasPrice() external view returns (uint256);
-
-    function feeRateMultipliers(address user) external view returns (uint256);
 }

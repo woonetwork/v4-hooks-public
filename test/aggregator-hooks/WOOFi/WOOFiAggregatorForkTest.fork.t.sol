@@ -17,12 +17,6 @@ import {SafePoolSwapTest} from "../shared/SafePoolSwapTest.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
 import {IWooPPV2} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 
-interface IWooPPV2Owner is IWooPPV2 {
-    function owner() external view returns (address);
-    function setFeeRate(address token, uint16 rate) external;
-    function withdraw(address token, uint256 amount) external;
-}
-
 /// @notice Shared Arbitrum (42161) fork setup against the live WooPPV2.
 /// @dev `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161` (0 = latest). Skips when the RPC is unset.
 ///      `POOL_MANAGER_42161` / `WOOPP_42161` default to the live deployments. The fork must not be warped:
@@ -44,7 +38,7 @@ abstract contract WOOFiForkBase is Test {
     uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
 
     IPoolManager public manager;
-    IWooPPV2Owner public wooPP;
+    IWooPPV2 public wooPP;
     SafePoolSwapTest public swapRouter;
     WOOFiAggregator public hook;
 
@@ -61,7 +55,7 @@ abstract contract WOOFiForkBase is Test {
         else vm.createSelectFork(rpcUrl);
 
         manager = IPoolManager(vm.envOr("POOL_MANAGER_42161", DEFAULT_POOL_MANAGER));
-        wooPP = IWooPPV2Owner(vm.envOr("WOOPP_42161", DEFAULT_WOOPP));
+        wooPP = IWooPPV2(vm.envOr("WOOPP_42161", DEFAULT_WOOPP));
         require(wooPP.quoteToken() == USDC, "unexpected WooPP quote token");
 
         swapRouter = new SafePoolSwapTest(manager);
@@ -73,7 +67,7 @@ abstract contract WOOFiForkBase is Test {
         bytes memory args = abi.encode(address(manager), address(wooPP));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(address(this), flags, type(WOOFiAggregator).creationCode, args);
-        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(wooPP)));
+        hook = new WOOFiAggregator{salt: salt}(manager, wooPP);
         require(address(hook) == hookAddress, "Hook address mismatch");
 
         manager.initialize(_key(USDC, WETH), SQRT_PRICE_1_1);
@@ -169,45 +163,5 @@ contract WOOFiAggregatorForkTest is WOOFiForkBase {
         assertEq(amount1, wooPP.poolSize(Currency.unwrap(key.currency1)));
         assertGt(amount0, 0);
         assertGt(amount1, 0);
-    }
-
-    /// @dev Confirms the deployed WooPPV2 has the base → quote reserve mismatch the hook guards against:
-    ///      `query` checks output and fee against the quote reserve separately, `swap` subtracts their sum.
-    function test_fork_baseToQuoteReserveBoundary() public {
-        uint256 amountIn = 0.1e18;
-        address owner = wooPP.owner();
-
-        // Pre-fee quote amount Q: with feeRate 0 the output is exactly Q
-        vm.prank(owner);
-        wooPP.setFeeRate(WETH, 0);
-        uint256 gross = wooPP.query(WETH, USDC, amountIn);
-
-        vm.prank(owner);
-        wooPP.setFeeRate(WETH, 1000); // 1%
-        uint256 out = wooPP.query(WETH, USDC, amountIn);
-        assertLt(out, gross, "fee charged");
-
-        // Leave the quote reserve one unit below output + fee
-        uint256 reserve = wooPP.poolSize(USDC);
-        vm.prank(owner);
-        wooPP.withdraw(USDC, reserve - (gross - 1));
-        assertEq(wooPP.poolSize(USDC), gross - 1);
-
-        assertEq(wooPP.query(WETH, USDC, amountIn), out, "raw query still passes");
-        PoolId id = _key(WETH, USDC).toId();
-        vm.expectRevert(WOOFiAggregator.InsufficientQuoteReserve.selector);
-        hook.quote(WETH < USDC, -int256(amountIn), id);
-        vm.expectRevert();
-        _swap(WETH, USDC, amountIn);
-
-        // output + fee + 2 (the hook's pre-fee bound is conservative by up to 2 wei): quote and swap go through
-        deal(USDC, owner, 3);
-        vm.startPrank(owner);
-        IERC20(USDC).approve(address(wooPP), 3);
-        (bool ok,) = address(wooPP).call(abi.encodeWithSignature("deposit(address,uint256)", USDC, 3));
-        vm.stopPrank();
-        assertTrue(ok, "deposit");
-        assertEq(wooPP.poolSize(USDC), gross + 2);
-        assertEq(_assertQuoteMatchesSwap(WETH, USDC, amountIn), out);
     }
 }
