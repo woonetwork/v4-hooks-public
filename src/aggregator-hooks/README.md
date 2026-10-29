@@ -37,6 +37,7 @@ First-byte ID table:
 | 95  | LitePSM            |
 | 02  | Uniswap V2         |
 | 58  | UniswapX (Dutch)   |
+| 77  | WOOFi (WooPPV2)    |
 
 ## Supported Protocols
 
@@ -155,6 +156,29 @@ The "liquidity source" is a single **UniswapX order** (e.g. an original Dutch or
 #### Defined interfaces
 
 UniswapX interfaces are imported from the [`briefcase`](https://github.com/Uniswap/briefcase) submodule via the `@uniswapx/` remapping (`IReactor`, `IReactorCallback`, `ReactorStructs`).
+
+### WOOFi (WooPPV2)
+
+Singleton hook routes swaps through **WOOFi's WooPPV2**, a synthetic proactive market maker (sPMM) that prices every base token against one quote token (e.g. USDC) from the Wooracle. One WooPPV2 per chain holds every supported token, so one hook deployment serves every pair, and all pools share the hook address (letting routers detect repeated interaction with the same WooPP state).
+
+| Pool Type   | Implementation    | Routing                                                                                                     |
+| ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| **WooPPV2** | `WOOFiAggregator` | Singleton; base ↔ quote and base ↔ base (WooPP routes base → quote → base internally). One pool per pair. |
+
+#### Key Details
+
+- **Exact-input only**: WooPP only prices exact-in swaps; exact-out quotes and swaps revert (`ExactOutputNotSupported`)
+- **ERC20 only**: native currency reverts (`NativeCurrencyNotSupported`); use WETH
+- **Push model, no approvals**: input goes from the PoolManager straight to WooPP and WooPP sends the output straight to the PoolManager
+- **Pair registration**: each token must be WooPP's quote token or a base token configured in WooPP (`maxNotionalSwap > 0`), and WooPP must price the pair at initialization (`tryQuery` probe; fails while the oracle is stale)
+- **Quotes**: `WooPPV2.query` plus the swap-only checks `query` skips — pool pause, blacklist (hook and `tx.origin`), `maxGasPrice`, and, for base → quote, the combined `output + fee` against the quote reserve (`query` checks them separately while `swap` subtracts their sum). A quote that passes is fillable in the same state
+- **Reverts by design** when the Wooracle price is stale, out of its Chainlink bound or paused, or when a swap exceeds `maxNotionalSwap` / `maxGamma` / `capBal`: routers should skip or split
+- **Fees**: WooPP's fee rate multiplier is `max(multiplier[tx.origin], multiplier[hook])`, so WOOFi can price Uniswap flow separately via `setFeeRateMultiplier(hook, x)`; `rebateTo` (constructor argument) is passed to every swap for attribution
+- **Migration**: a WooPP migration to a new pool address requires a new hook deployment
+
+#### Defined interfaces
+
+A minimal `IWooPPV2` interface lives under `implementations/WOOFi/interfaces/` for the subset of the WooPPV2 ABI (`woonetwork/woofi-evm`, `contracts/spmm/WooPPV2.sol`) the hook uses.
 
 ## Architecture
 

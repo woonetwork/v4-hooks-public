@@ -56,6 +56,7 @@ Fork URLs and blocks are **chain-scoped** by chain id (same `.env` can fork Ethe
 | -------------------- | ------------------- | ---------------------------------- |
 | Ethereum mainnet (1) | `FORK_RPC_URL_1`    | `FORK_BLOCK_NUMBER_1` (0 = latest) |
 | Base (8453)          | `FORK_RPC_URL_8453` | `FORK_BLOCK_NUMBER_8453`           |
+| Arbitrum (42161)     | `FORK_RPC_URL_42161` | `FORK_BLOCK_NUMBER_42161`         |
 
 Fork suites read env vars only by chain id—there is no fallback to unsuffixed `FORK_RPC_URL` / `FORK_BLOCK_NUMBER`:
 
@@ -70,6 +71,8 @@ See `.env.example` for keys. Example deployments (verify on-chain before product
 | External pool | `UNISWAP_V3_EXTERNAL_POOL` — e.g. WETH/USDT 0.3% `0x4e68Ccd3E89f51c3074ca5072bbac773960dFa36` (includes USDT) | `UNISWAP_V2_EXTERNAL_PAIR` — required when `FORK_RPC_URL_1` is set; e.g. WETH/USDT `0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852` (includes USDT). If unset while RPC is set, the fork suite **skips**. | `LITE_PSM_WRAPPER` — LitePSMWrapper address, e.g. USDC/USDS `0xA188EEc8F81263234dA3622A406892F3D630f98c`. `USDS` — USDS token `0xdC035D45d973E3EC169d2276DDab16f1e407384F`. Suite **skips** when either is unset. | `SLIPSTREAM_EXTERNAL_POOL` — any Slipstream pool, e.g. WETH/USDC `0xdbc6998296caA1652A810dc8D3BaF4A8294330f1`                 | `PANCAKE_V3_EXTERNAL_POOL` — any Pancake V3 pool on Base; USDT tests expect **bridged USDT** `0xfDE4C96C8593536E31F229Ea8f37B2adAbC26991` in the pair (see fork test). |
 
 Uni V3, Slipstream, and Pancake V3 aggregator hooks quote by simulating swaps on the pool (no periphery quoter env vars).
+
+**Arbitrum (42161):** **WOOFi** (`WOOFiAggregatorForkTest`, `WOOFiAggregatorFuzzForkTest`) uses `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161`, and skips when the RPC is unset. `POOL_MANAGER_42161` and `WOOPP_42161` default to the live PoolManager (`0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32`) and WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`). Do not warp the fork: Wooracle prices go stale after `staleDuration` (300s) and every quote and swap then reverts. The WOOFi unit tests run against the real WooPPV2 bytecode in `test/aggregator-hooks/WOOFi/precompile/WooPPV2.bin` (built from `woonetwork/woofi-evm` `contracts/spmm/WooPPV2.sol`, solc 0.8.24, via-ir, 200 runs) behind an ERC1967 proxy, with a mock Wooracle.
 
 **Base shared:** set `POOL_MANAGER_8453` to the Uniswap v4 **PoolManager** on Base ([deployments](https://docs.uniswap.org/contracts/v4/deployments)).
 
