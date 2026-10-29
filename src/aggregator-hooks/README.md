@@ -173,7 +173,7 @@ Singleton hook routes swaps through **WOOFi's WooPPV2**, a synthetic proactive m
 - **Pair registration**: each token must be WooPP's quote token or a base token configured in WooPP (`maxNotionalSwap > 0`)
 - **Quotes**: `WooPPV2.query` plus the swap-only checks `query` skips — pool pause, blacklist (hook and `tx.origin`), `maxGasPrice`, and, for base → quote, the combined `output + fee` against the quote reserve (`query` checks them separately while `swap` subtracts their sum). A quote that passes is fillable in the same state
 - **Reverts by design** when the Wooracle price is stale, out of its Chainlink bound or paused, or when a swap exceeds `maxNotionalSwap` / `maxGamma` / `capBal`: routers should skip or split
-- **Fees**: WooPP's fee rate multiplier is `max(multiplier[tx.origin], multiplier[hook])`, so WOOFi can price Uniswap flow separately via `setFeeRateMultiplier(hook, x)`; `rebateTo` (constructor argument) is passed to every swap for attribution
+- **Fees**: WooPP's fee rate multiplier is `max(multiplier[tx.origin], multiplier[hook])`, so WOOFi can price Uniswap flow separately via `setFeeRateMultiplier(hook, x)`. Uniswap flow is identifiable in WooPP's `WooSwap` events by `from == hook`
 - **Migration**: a WooPP migration to a new pool address requires a new hook deployment
 
 #### Defined interfaces

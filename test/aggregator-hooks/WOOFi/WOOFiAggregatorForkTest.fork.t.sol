@@ -49,7 +49,6 @@ abstract contract WOOFiForkBase is Test {
     WOOFiAggregator public hook;
 
     address public alice = makeAddr("woofi_fork_alice");
-    address public rebateTo = makeAddr("woofi_fork_rebateTo");
 
     function setUp() public virtual {
         string memory rpcUrl = vm.envOr("FORK_RPC_URL_42161", string(""));
@@ -71,10 +70,10 @@ abstract contract WOOFiForkBase is Test {
             Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_INITIALIZE_FLAG
                 | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         );
-        bytes memory args = abi.encode(address(manager), address(wooPP), rebateTo);
+        bytes memory args = abi.encode(address(manager), address(wooPP));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(address(this), flags, type(WOOFiAggregator).creationCode, args);
-        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(wooPP)), rebateTo);
+        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(wooPP)));
         require(address(hook) == hookAddress, "Hook address mismatch");
 
         manager.initialize(_key(USDC, WETH), SQRT_PRICE_1_1);

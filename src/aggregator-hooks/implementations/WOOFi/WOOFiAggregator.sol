@@ -28,9 +28,6 @@ contract WOOFiAggregator is BaseAggregatorHook {
     /// @notice The WooPPV2 pool
     IWooPPV2 public immutable wooPP;
 
-    /// @notice Address passed to WooPP as `rebateTo` for volume attribution
-    address public immutable rebateTo;
-
     /// @notice Token pair info for each registered pool
     struct PoolTokens {
         address token0;
@@ -54,12 +51,8 @@ contract WOOFiAggregator is BaseAggregatorHook {
 
     /// @param _manager The Uniswap V4 PoolManager contract
     /// @param _wooPP The WooPPV2 pool
-    /// @param _rebateTo Address passed to WooPP as `rebateTo` on every swap
-    constructor(IPoolManager _manager, IWooPPV2 _wooPP, address _rebateTo)
-        BaseAggregatorHook(_manager, "WOOFiAggregator v1.0")
-    {
+    constructor(IPoolManager _manager, IWooPPV2 _wooPP) BaseAggregatorHook(_manager, "WOOFiAggregator v1.0") {
         wooPP = _wooPP;
-        rebateTo = _rebateTo;
     }
 
     /// @inheritdoc BaseAggregatorHook
@@ -125,7 +118,8 @@ contract WOOFiAggregator is BaseAggregatorHook {
         amountTake = uint256(-params.amountSpecified);
 
         // Push model: PoolManager → WooPP for input, WooPP → PoolManager for output.
-        // Slippage is enforced by the V4 router on the output, so minToAmount is 0.
+        // Slippage is enforced by the V4 router on the output, so minToAmount is 0. `rebateTo` only feeds
+        // WooPP's event; the hook is identifiable as the event's `from`, so it is left unset.
         poolManager.sync(settleCurrency);
         poolManager.take(takeCurrency, address(wooPP), amountTake);
         wooPP.swap(
@@ -134,7 +128,7 @@ contract WOOFiAggregator is BaseAggregatorHook {
             amountTake,
             0,
             address(poolManager),
-            rebateTo
+            address(0)
         );
         // Credit what actually arrived at the PoolManager
         amountSettle = poolManager.settle();

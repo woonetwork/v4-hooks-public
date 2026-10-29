@@ -77,7 +77,6 @@ contract WOOFiAggregatorUnitTest is Test {
     MockERC20 public wbtc; // 8 decimals
 
     address public alice = makeAddr("alice");
-    address public rebateTo = makeAddr("rebateTo");
     address public tokenJar = makeAddr("tokenJar");
     address public feeAddr = makeAddr("feeAddr");
 
@@ -152,10 +151,10 @@ contract WOOFiAggregatorUnitTest is Test {
             Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_INITIALIZE_FLAG
                 | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         );
-        bytes memory constructorArgs = abi.encode(address(manager), address(wooPP), rebateTo);
+        bytes memory constructorArgs = abi.encode(address(manager), address(wooPP));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(address(this), flags, type(WOOFiAggregator).creationCode, constructorArgs);
-        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(wooPP)), rebateTo);
+        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(wooPP)));
         require(address(hook) == hookAddress, "Hook address mismatch");
     }
 
@@ -231,7 +230,6 @@ contract WOOFiAggregatorUnitTest is Test {
 
     function test_constructor() public view {
         assertEq(address(hook.wooPP()), address(wooPP));
-        assertEq(hook.rebateTo(), rebateTo);
         assertEq(hook.aggregatorHookVersion(), "WOOFiAggregator v1.0");
         assertEq(hook.tokenJar(), tokenJar);
     }
@@ -324,7 +322,7 @@ contract WOOFiAggregatorUnitTest is Test {
         _assertQuoteMatchesSwap(wbtc, weth, 1e8);
     }
 
-    function test_exactIn_emitsWooSwapToPoolManagerWithRebate() public {
+    function test_exactIn_emitsWooSwapFromHookToPoolManager() public {
         vm.recordLogs();
         _swap(weth, usdc, -int256(1e18));
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -340,7 +338,7 @@ contract WOOFiAggregatorUnitTest is Test {
                 abi.decode(logs[i].data, (uint256, uint256, address, address, uint256, uint256));
             assertEq(fromAmount, 1e18, "fromAmount");
             assertEq(from, address(hook), "from");
-            assertEq(rebate, rebateTo, "rebateTo");
+            assertEq(rebate, address(0), "rebateTo");
         }
         assertTrue(found, "WooSwap not emitted");
     }
