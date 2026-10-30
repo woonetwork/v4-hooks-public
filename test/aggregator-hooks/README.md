@@ -76,6 +76,8 @@ Uni V3, Slipstream, and Pancake V3 aggregator hooks quote by simulating swaps on
 
 **Base (8453), WOOFi:** `WOOFiGatewayForkTest` routes through `WOOFiGateway` to the live WooPPV2 for ETH, cbBTC and USDC, using `FORK_RPC_URL_8453` (skips when unset). `POOL_MANAGER_8453` and `WOOPP_8453` default to `0x498581fF718922c3f8e6A244956aF099B2652b2b` and `0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`.
 
+**Base (8453), WOOFi end-to-end:** `WOOFiEndToEndForkTest` deploys with the production script `script/deploy/woofi/DeployWOOFiBase.s.sol` (mining the `0x77` hook salt with `cast create2` through ffi, so `cast` must be on `PATH`), accepts gateway ownership as the WOOFi Safe, and trades through the live Universal Router (Permit2 + `V4_SWAP`) with quotes from the live V4Quoter.
+
 **Base shared:** set `POOL_MANAGER_8453` to the Uniswap v4 **PoolManager** on Base ([deployments](https://docs.uniswap.org/contracts/v4/deployments)).
 
 Example:
