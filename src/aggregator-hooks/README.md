@@ -161,41 +161,43 @@ UniswapX interfaces are imported from the [`briefcase`](https://github.com/Unisw
 
 Singleton hook routes swaps through **WOOFi's WooPPV2**, a synthetic proactive market maker (sPMM) that prices every base token against one quote token (e.g. USDC) from the Wooracle. One WooPPV2 per chain holds every supported token, so one hook deployment serves every pair, and all pools share the hook address (letting routers detect repeated interaction with the same WooPP state).
 
-| Pool Type   | Implementation    | Routing                                                                                                     |
-| ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| **WooPPV2** | `WOOFiAggregator` | Singleton; base ↔ quote and base ↔ base (WooPP routes base → quote → base internally). One pool per pair. |
-
-#### Key Details
-
-- **Exact-input only**: WooPP only prices exact-in swaps; exact-out quotes and swaps revert (`ExactOutputNotSupported`)
-- **One pool per pair**: pools must use `fee = 0` and `tickSpacing = 1` (both unused, as the hook fills the whole swap), so each pair has exactly one PoolKey
-- **ERC20 only**: native-currency pools fail to initialize (`TokensNotSupported`); use WETH
-- **Push model, no approvals**: input goes from the PoolManager straight to WooPP and WooPP sends the output straight to the PoolManager
-- **Pair registration**: each token must be WooPP's quote token or a base token configured in WooPP (`maxNotionalSwap > 0`)
-- **Quotes**: `WooPPV2.query` plus the pool-pause check that `swap` enforces but `query` skips
-- **Assumes `feeRate == 0`**: WooPP is configured on every chain to charge through the Wooracle spread with a zero `feeRate`. With a non-zero fee, `query` checks a base → quote output and its fee against the quote reserve separately while `swap` subtracts their sum, so a swap near that reserve could quote but revert
-- **Reverts by design** when the Wooracle price is stale, out of its Chainlink bound or paused, or when a swap exceeds `maxNotionalSwap` / `maxGamma` / `capBal`: routers should skip or split
-- **Attribution**: Uniswap flow is identifiable in WooPP's `WooSwap` events by `from == hook`
-- **Migration**: a WooPP migration to a new pool address requires a new hook deployment
-
-#### WOOFiGateway
-
-The hook itself is immutable and ownerless. WOOFi deploys it pointing at a `WOOFiGateway` instead of WooPPV2 directly: a WOOFi-owned contract implementing the same `IWooPPV2` surface, which applies adjustable risk controls to Uniswap-routed flow only:
+The hook is immutable and ownerless. It reaches WooPPV2 through a WOOFi-owned **`WOOFiGateway`**, which holds WOOFi's adjustable risk controls for Uniswap-routed flow:
 
 ```
 Uniswap Router → PoolManager → WOOFiAggregator (immutable) → WOOFiGateway (WOOFi-owned) → WooPPV2 ← Wooracle ← keeper
 ```
 
+| Pool Type   | Implementation                     | Routing                                                                                                     |
+| ----------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **WooPPV2** | `WOOFiAggregator` + `WOOFiGateway` | Singleton; base ↔ quote and base ↔ base (WooPP routes base → quote → base internally). One pool per pair. |
+
+#### Hook
+
+- **Exact-input only**: WooPP only prices exact-in swaps; exact-out quotes and swaps revert (`ExactOutputNotSupported`)
+- **One pool per pair**: pools must use `fee = 0` and `tickSpacing = 1` (both unused, as the hook fills the whole swap), so each pair has exactly one PoolKey
+- **Pair registration**: both tokens must be allowed by the gateway, which also rules out native currency (`TokensNotSupported`); use WETH
+- **Push model, no approvals**: input goes from the PoolManager straight to the gateway, which sends the output straight to the PoolManager
+- **Quotes**: `WOOFiGateway.query`, which reverts wherever the swap would
+
+#### Gateway
+
 - **Price freshness**: `query`/`swap` revert when the Wooracle prices are older than `maxPriceAge`
 - **Age spread**: output = WooPP output × (1 − `spreadPerSecond` × age); the difference stays in the gateway for the owner to withdraw. `query` and `swap` use the same formula, so router simulation matches execution
-- **Token allowlist**: non-allowed tokens read as unconfigured, so their pools cannot be registered, and `query`/`swap` reject them
+- **Token allowlist**: only allowed tokens can have pools, and `query`/`swap` reject the rest, so a token can be delisted later
 - **Per-swap notional cap** in quote token units, tighter than WooPP's `maxNotionalSwap`
-- **Pause**: pausers or the owner pause; only the owner unpauses. While paused (or while WooPP is paused) quotes revert, so routers stop sending flow
-- Only the hook can call `swap`
+- **Pause**: pausers or the owner pause; only the owner unpauses. While the gateway or WooPP is paused, quotes revert, so routers stop sending flow
+- Only the hook can call `swap`. Pricing and the notional cap start at zero, so nothing trades until the owner configures them
+
+#### WooPP behavior
+
+- **Assumes `feeRate == 0`**: WooPP is configured on every chain to charge through the Wooracle spread with a zero `feeRate`. With a non-zero fee, `query` checks a base → quote output and its fee against the quote reserve separately while `swap` subtracts their sum, so a swap near that reserve could quote but revert
+- **Reverts by design** when the Wooracle price is stale, out of its Chainlink bound or paused, or when a swap exceeds `maxNotionalSwap` / `maxGamma` / `capBal`: routers should skip or split
+- **Attribution**: Uniswap flow is identifiable in WooPP's `WooSwap` events by `from == gateway`
+- **Migration**: the gateway's WooPP and the hook's gateway are both immutable, so moving to a new WooPP address requires deploying a new gateway and hook
 
 #### Defined interfaces
 
-A minimal `IWooPPV2` interface lives under `implementations/WOOFi/interfaces/` for the subset of the WooPPV2 ABI (`woonetwork/woofi-evm`, `contracts/spmm/WooPPV2.sol`) the hook uses.
+`implementations/WOOFi/interfaces/` holds `IWOOFiGateway` (what the hook calls), and minimal `IWooPPV2` / `IWooracle` interfaces for the subset of WooPPV2 and WooracleV2_2 (`woonetwork/woofi-evm`, `contracts/spmm/`) the gateway uses.
 
 ## Architecture
 

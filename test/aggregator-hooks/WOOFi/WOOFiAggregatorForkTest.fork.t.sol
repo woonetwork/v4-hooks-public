@@ -15,9 +15,11 @@ import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {HookMiner} from "../../../src/utils/HookMiner.sol";
 import {SafePoolSwapTest} from "../shared/SafePoolSwapTest.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
+import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
+import {IWOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWOOFiGateway.sol";
 import {IWooPPV2} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 
-/// @notice Shared Arbitrum (42161) fork setup against the live WooPPV2.
+/// @notice Shared Arbitrum (42161) fork setup: WOOFiAggregator → permissive WOOFiGateway → live WooPPV2.
 /// @dev `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161` (0 = latest). Skips when the RPC is unset.
 ///      `POOL_MANAGER_42161` / `WOOPP_42161` default to the live deployments. The fork must not be warped:
 ///      Wooracle prices go stale after `staleDuration` (300s by default) and every quote/swap then reverts.
@@ -41,6 +43,7 @@ abstract contract WOOFiForkBase is Test {
 
     IPoolManager public manager;
     IWooPPV2 public wooPP;
+    WOOFiGateway public gateway;
     SafePoolSwapTest public swapRouter;
     WOOFiAggregator public hook;
 
@@ -62,15 +65,24 @@ abstract contract WOOFiForkBase is Test {
 
         swapRouter = new SafePoolSwapTest(manager);
 
+        gateway = new WOOFiGateway(wooPP, address(this));
+        gateway.setPricing(1 days, 0);
+        gateway.setMaxNotionalPerSwap(type(uint256).max);
+        gateway.setTokenAllowed(USDC, true);
+        gateway.setTokenAllowed(USDT, true);
+        gateway.setTokenAllowed(WETH, true);
+        gateway.setTokenAllowed(WBTC, true);
+
         uint160 flags = uint160(
             Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_INITIALIZE_FLAG
                 | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
         );
-        bytes memory args = abi.encode(address(manager), address(wooPP));
+        bytes memory args = abi.encode(address(manager), address(gateway));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(address(this), flags, type(WOOFiAggregator).creationCode, args);
-        hook = new WOOFiAggregator{salt: salt}(manager, wooPP);
+        hook = new WOOFiAggregator{salt: salt}(manager, IWOOFiGateway(address(gateway)));
         require(address(hook) == hookAddress, "Hook address mismatch");
+        gateway.setHook(address(hook));
 
         manager.initialize(_key(USDC, WETH), SQRT_PRICE_1_1);
         manager.initialize(_key(WETH, WBTC), SQRT_PRICE_1_1);

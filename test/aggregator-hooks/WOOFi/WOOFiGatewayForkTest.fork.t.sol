@@ -16,11 +16,8 @@ import {HookMiner} from "../../../src/utils/HookMiner.sol";
 import {SafePoolSwapTest} from "../shared/SafePoolSwapTest.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
 import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
-import {
-    IWooPPV2,
-    IWooPPV2Pool,
-    IWooracle
-} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
+import {IWOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWOOFiGateway.sol";
+import {IWooPPV2, IWooracle} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 
 /// @notice Base (8453) fork tests: WOOFiAggregator → WOOFiGateway → live WooPPV2, for the launch set ETH, cbBTC, USDC.
 /// @dev `FORK_RPC_URL_8453` and optional `FORK_BLOCK_NUMBER_8453` (0 = latest). Skips when the RPC is unset.
@@ -49,7 +46,7 @@ contract WOOFiGatewayForkTest is Test {
     uint256 constant MAX_NOTIONAL_PER_SWAP = 50_000e6;
 
     IPoolManager public manager;
-    IWooPPV2Pool public wooPP;
+    IWooPPV2 public wooPP;
     WOOFiGateway public gateway;
     WOOFiAggregator public hook;
     SafePoolSwapTest public swapRouter;
@@ -67,7 +64,7 @@ contract WOOFiGatewayForkTest is Test {
         else vm.createSelectFork(rpcUrl);
 
         manager = IPoolManager(vm.envOr("POOL_MANAGER_8453", DEFAULT_POOL_MANAGER));
-        wooPP = IWooPPV2Pool(vm.envOr("WOOPP_8453", DEFAULT_WOOPP));
+        wooPP = IWooPPV2(vm.envOr("WOOPP_8453", DEFAULT_WOOPP));
         require(wooPP.quoteToken() == USDC, "unexpected WooPP quote token");
 
         gateway = new WOOFiGateway(wooPP, address(this));
@@ -84,7 +81,7 @@ contract WOOFiGatewayForkTest is Test {
         bytes memory args = abi.encode(address(manager), address(gateway));
         (address hookAddress, bytes32 salt) =
             HookMiner.find(address(this), flags, type(WOOFiAggregator).creationCode, args);
-        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(gateway)));
+        hook = new WOOFiAggregator{salt: salt}(manager, IWOOFiGateway(address(gateway)));
         require(address(hook) == hookAddress, "Hook address mismatch");
         gateway.setHook(address(hook));
 

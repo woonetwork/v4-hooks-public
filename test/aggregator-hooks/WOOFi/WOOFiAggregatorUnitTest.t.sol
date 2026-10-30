@@ -2,200 +2,25 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {ProtocolFeeLibrary} from "@uniswap/v4-core/src/libraries/ProtocolFeeLibrary.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
-import {HookMiner} from "../../../src/utils/HookMiner.sol";
-import {SafePoolSwapTest} from "../shared/SafePoolSwapTest.sol";
-import {MockV4FeeAdapter} from "../mocks/MockV4FeeAdapter.sol";
 import {IAggregatorHook} from "../../../src/aggregator-hooks/interfaces/IAggregatorHook.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
-import {IWooPPV2, IWooPPV2Pool} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 import {MockWooracle} from "./mocks/MockWooracle.sol";
+import {WOOFiTestBase} from "./WOOFiTestBase.sol";
 
-/// @notice Admin surface of WooPPV2 used to configure the pool in tests
-interface IWooPPV2Admin is IWooPPV2Pool {
-    function initialize(address owner, address quoteToken, address wooracle, address feeAddr) external;
-    function setTokenInfo(address token, uint16 feeRate, uint128 maxGamma, uint128 maxNotionalSwap, uint192 capBal)
-        external;
-    function setFeeRate(address token, uint16 rate) external;
-    function setMaxGasPrice(uint256 maxGasPrice) external;
-    function setFeeRateMultiplier(address user, uint256 feeRateMultiplier) external;
-    function deposit(address token, uint256 amount) external;
-    function withdraw(address token, uint256 amount) external;
-    function pause() external;
-    function unpause() external;
-}
-
-/// @notice Unit tests run against the real WooPPV2 bytecode (woonetwork/woofi-evm, solc 0.8.24, via-ir) behind an
-///         ERC1967 proxy, with a mock Wooracle supplying prices.
-contract WOOFiAggregatorUnitTest is Test {
+/// @notice WOOFiAggregator through a permissive WOOFiGateway, so these tests exercise the hook and WooPP itself
+contract WOOFiAggregatorUnitTest is WOOFiTestBase {
     using PoolIdLibrary for PoolKey;
-    using CurrencyLibrary for Currency;
-
-    string constant WOOPP_BYTECODE_PATH = "test/aggregator-hooks/WOOFi/precompile/WooPPV2.bin";
-
-    uint24 constant POOL_FEE = 0; // mirrors WOOFiAggregator.POOL_FEE (checked in test_poolParameters)
-    int24 constant POOL_TICK_SPACING = 1; // mirrors WOOFiAggregator.POOL_TICK_SPACING
-    uint160 constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
-    uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
-    uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
-
-    uint256 constant MAX_GAS_PRICE = 1000 gwei;
-    uint16 constant FEE_RATE = 25; // 2.5 bps
-    uint128 constant MAX_GAMMA = 1e17; // 10%
-    uint128 constant MAX_NOTIONAL = 10_000_000e6; // 10M USDC
-    uint64 constant SPREAD = 1e15; // 0.1%
-    uint64 constant COEFF = 1e9;
-    uint128 constant WETH_PRICE = 3000e8;
-    uint128 constant WBTC_PRICE = 60_000e8;
-
-    uint256 constant USDC_RESERVE = 10_000_000e6;
-    uint256 constant WETH_RESERVE = 3000e18;
-    uint256 constant WBTC_RESERVE = 150e8;
 
     bytes32 constant WOO_SWAP_TOPIC =
         keccak256("WooSwap(address,address,uint256,uint256,address,address,address,uint256,uint256)");
-
-    IPoolManager public manager;
-    SafePoolSwapTest public swapRouter;
-    MockV4FeeAdapter public feeAdapter;
-    WOOFiAggregator public hook;
-    IWooPPV2Admin public wooPP;
-    MockWooracle public wooracle;
-
-    MockERC20 public usdc; // quote, 6 decimals
-    MockERC20 public weth; // 18 decimals
-    MockERC20 public wbtc; // 8 decimals
-
-    address public alice = makeAddr("alice");
-    address public tokenJar = makeAddr("tokenJar");
-    address public feeAddr = makeAddr("feeAddr");
-
-    function setUp() public {
-        usdc = new MockERC20("USD Coin", "USDC", 6);
-        weth = new MockERC20("Wrapped Ether", "WETH", 18);
-        wbtc = new MockERC20("Wrapped BTC", "WBTC", 8);
-
-        wooracle = new MockWooracle(address(usdc));
-        wooPP = _deployWooPP(address(usdc), address(wooracle));
-        wooracle.setWooPP(address(wooPP));
-        wooPP.setMaxGasPrice(MAX_GAS_PRICE);
-
-        wooPP.setTokenInfo(address(usdc), 0, 0, 0, type(uint192).max);
-        wooPP.setTokenInfo(address(weth), FEE_RATE, MAX_GAMMA, MAX_NOTIONAL, type(uint192).max);
-        wooPP.setTokenInfo(address(wbtc), FEE_RATE, MAX_GAMMA, MAX_NOTIONAL, type(uint192).max);
-        wooracle.setState(address(weth), WETH_PRICE, SPREAD, COEFF, true);
-        wooracle.setState(address(wbtc), WBTC_PRICE, SPREAD, COEFF, true);
-
-        _deposit(usdc, USDC_RESERVE);
-        _deposit(weth, WETH_RESERVE);
-        _deposit(wbtc, WBTC_RESERVE);
-
-        manager = IPoolManager(deployCode("foundry-out/PoolManager.sol/PoolManager.json", abi.encode(address(this))));
-        feeAdapter = new MockV4FeeAdapter(manager, tokenJar);
-        manager.setProtocolFeeController(address(feeAdapter));
-
-        // Seed PoolManager so `take` can front the swapper's input before the router settles it
-        usdc.mint(address(manager), USDC_RESERVE);
-        weth.mint(address(manager), WETH_RESERVE);
-        wbtc.mint(address(manager), WBTC_RESERVE);
-
-        swapRouter = new SafePoolSwapTest(manager);
-        _deployHook();
-
-        _initPool(usdc, weth);
-        _initPool(usdc, wbtc);
-        _initPool(weth, wbtc);
-
-        usdc.mint(alice, USDC_RESERVE);
-        weth.mint(alice, WETH_RESERVE);
-        wbtc.mint(alice, WBTC_RESERVE);
-        vm.startPrank(alice);
-        usdc.approve(address(swapRouter), type(uint256).max);
-        weth.approve(address(swapRouter), type(uint256).max);
-        wbtc.approve(address(swapRouter), type(uint256).max);
-        vm.stopPrank();
-    }
-
-    // ── Setup helpers ──────────────────────────────────────────────────────────
-
-    function _deployWooPP(address quote, address oracle) internal returns (IWooPPV2Admin) {
-        bytes memory code = vm.parseBytes(vm.readFile(WOOPP_BYTECODE_PATH));
-        address impl;
-        assembly {
-            impl := create(0, add(code, 0x20), mload(code))
-        }
-        require(impl != address(0), "WooPPV2 deploy failed");
-        ERC1967Proxy proxy =
-            new ERC1967Proxy(impl, abi.encodeCall(IWooPPV2Admin.initialize, (address(this), quote, oracle, feeAddr)));
-        return IWooPPV2Admin(address(proxy));
-    }
-
-    function _deposit(MockERC20 token, uint256 amount) internal {
-        token.mint(address(this), amount);
-        token.approve(address(wooPP), amount);
-        wooPP.deposit(address(token), amount);
-    }
-
-    function _deployHook() internal {
-        uint160 flags = uint160(
-            Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.BEFORE_INITIALIZE_FLAG
-                | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-        );
-        bytes memory constructorArgs = abi.encode(address(manager), address(wooPP));
-        (address hookAddress, bytes32 salt) =
-            HookMiner.find(address(this), flags, type(WOOFiAggregator).creationCode, constructorArgs);
-        hook = new WOOFiAggregator{salt: salt}(manager, IWooPPV2(address(wooPP)));
-        require(address(hook) == hookAddress, "Hook address mismatch");
-    }
-
-    function _key(address a, address b, uint24 fee) internal view returns (PoolKey memory) {
-        (address t0, address t1) = a < b ? (a, b) : (b, a);
-        return PoolKey({
-            currency0: Currency.wrap(t0),
-            currency1: Currency.wrap(t1),
-            fee: fee,
-            tickSpacing: POOL_TICK_SPACING,
-            hooks: IHooks(address(hook))
-        });
-    }
-
-    function _initPool(MockERC20 a, MockERC20 b) internal {
-        manager.initialize(_key(address(a), address(b), 0), SQRT_PRICE_1_1);
-    }
-
-    // ── Swap helpers ───────────────────────────────────────────────────────────
-
-    function _quote(MockERC20 tokenIn, MockERC20 tokenOut, uint256 amountIn) internal returns (uint256) {
-        PoolKey memory key = _key(address(tokenIn), address(tokenOut), 0);
-        return hook.quote(address(tokenIn) < address(tokenOut), -int256(amountIn), key.toId());
-    }
-
-    function _swap(MockERC20 tokenIn, MockERC20 tokenOut, int256 amountSpecified) internal {
-        PoolKey memory key = _key(address(tokenIn), address(tokenOut), 0);
-        bool zeroForOne = address(tokenIn) < address(tokenOut);
-        vm.prank(alice, alice);
-        swapRouter.swap(
-            key,
-            SwapParams({
-                zeroForOne: zeroForOne,
-                amountSpecified: amountSpecified,
-                sqrtPriceLimitX96: zeroForOne ? MIN_PRICE_LIMIT : MAX_PRICE_LIMIT
-            }),
-            SafePoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-            ""
-        );
-    }
 
     /// @dev Quotes then swaps exact-in, asserting the swapper received exactly the quote
     function _assertQuoteMatchesSwap(MockERC20 tokenIn, MockERC20 tokenOut, uint256 amountIn)
@@ -216,21 +41,10 @@ contract WOOFiAggregatorUnitTest is Test {
         _assertHookHoldsNothing();
     }
 
-    function _assertHookHoldsNothing() internal view {
-        assertEq(usdc.balanceOf(address(hook)), 0, "hook usdc");
-        assertEq(weth.balanceOf(address(hook)), 0, "hook weth");
-        assertEq(wbtc.balanceOf(address(hook)), 0, "hook wbtc");
-    }
-
-    function _setProtocolFee(PoolKey memory key, uint24 fee) internal {
-        vm.prank(address(feeAdapter));
-        manager.setProtocolFee(key, (fee << 12) | fee);
-    }
-
     // ── Construction / permissions ─────────────────────────────────────────────
 
     function test_constructor() public view {
-        assertEq(address(hook.wooPP()), address(wooPP));
+        assertEq(address(hook.gateway()), address(gateway));
         assertEq(hook.aggregatorHookVersion(), "WOOFiAggregator v1.0");
         assertEq(hook.tokenJar(), tokenJar);
     }
@@ -259,7 +73,7 @@ contract WOOFiAggregatorUnitTest is Test {
     // ── Initialization ─────────────────────────────────────────────────────────
 
     function test_initialize_registersPool() public view {
-        PoolKey memory expected = _key(address(weth), address(wbtc), 0);
+        PoolKey memory expected = _key(address(weth), address(wbtc), POOL_FEE);
         (Currency c0, Currency c1, uint24 fee, int24 tickSpacing, IHooks hooks) = hook.poolKeys(expected.toId());
         assertEq(Currency.unwrap(c0), Currency.unwrap(expected.currency0));
         assertEq(Currency.unwrap(c1), Currency.unwrap(expected.currency1));
@@ -280,26 +94,21 @@ contract WOOFiAggregatorUnitTest is Test {
         manager.initialize(key, SQRT_PRICE_1_1);
     }
 
-    function test_initialize_unconfiguredToken_reverts() public {
+    function test_initialize_tokenNotAllowed_reverts() public {
         MockERC20 other = new MockERC20("Other", "OTH", 18);
-        wooracle.setState(address(other), 1e8, 0, 0, true);
+        // Exercise both slots regardless of address ordering
         vm.expectRevert();
-        manager.initialize(_key(address(other), address(usdc), 0), SQRT_PRICE_1_1);
+        manager.initialize(_key(address(other), address(usdc), POOL_FEE), SQRT_PRICE_1_1);
+        vm.expectRevert();
+        manager.initialize(_key(address(other), address(weth), POOL_FEE), SQRT_PRICE_1_1);
     }
 
-    function test_initialize_unconfiguredBaseInSecondSlot_reverts() public {
-        // Exercise the second-token check regardless of address ordering
+    function test_initialize_allowedButUnpriced_succeeds() public {
+        // Registration only needs the gateway's allowlist; an unpriced token simply fails to quote
         MockERC20 other = new MockERC20("Other", "OTH", 18);
-        vm.expectRevert();
-        manager.initialize(_key(address(weth), address(other), 0), SQRT_PRICE_1_1);
-    }
-
-    function test_initialize_oracleInfeasible_succeeds() public {
-        // Registration only needs WooPP's token config; an unpriced token simply fails to quote
-        MockERC20 other = new MockERC20("Other", "OTH", 18);
-        wooPP.setTokenInfo(address(other), FEE_RATE, MAX_GAMMA, MAX_NOTIONAL, type(uint192).max);
+        gateway.setTokenAllowed(address(other), true);
         wooracle.setState(address(other), 1e8, 0, 0, false);
-        PoolKey memory key = _key(address(other), address(usdc), 0);
+        PoolKey memory key = _key(address(other), address(usdc), POOL_FEE);
         manager.initialize(key, SQRT_PRICE_1_1);
         vm.expectRevert();
         hook.quote(true, -1e18, key.toId());
@@ -312,7 +121,7 @@ contract WOOFiAggregatorUnitTest is Test {
     }
 
     function test_initialize_tickSpacingNotOne_reverts() public {
-        PoolKey memory key = _key(address(weth), address(usdc), 0);
+        PoolKey memory key = _key(address(weth), address(usdc), POOL_FEE);
         key.tickSpacing = 10;
         vm.expectRevert();
         manager.initialize(key, SQRT_PRICE_1_1);
@@ -320,7 +129,7 @@ contract WOOFiAggregatorUnitTest is Test {
 
     function test_initialize_samePairTwice_reverts() public {
         vm.expectRevert();
-        manager.initialize(_key(address(weth), address(usdc), 0), SQRT_PRICE_1_1);
+        manager.initialize(_key(address(weth), address(usdc), POOL_FEE), SQRT_PRICE_1_1);
     }
 
     // ── Exact-in swaps ─────────────────────────────────────────────────────────
@@ -341,7 +150,7 @@ contract WOOFiAggregatorUnitTest is Test {
         _assertQuoteMatchesSwap(wbtc, weth, 1e8);
     }
 
-    function test_exactIn_emitsWooSwapFromHookToPoolManager() public {
+    function test_exactIn_emitsWooSwapFromGateway() public {
         vm.recordLogs();
         _swap(weth, usdc, -int256(1e18));
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -352,31 +161,25 @@ contract WOOFiAggregatorUnitTest is Test {
             found = true;
             assertEq(address(uint160(uint256(logs[i].topics[1]))), address(weth), "fromToken");
             assertEq(address(uint160(uint256(logs[i].topics[2]))), address(usdc), "toToken");
-            assertEq(address(uint160(uint256(logs[i].topics[3]))), address(manager), "to");
-            (uint256 fromAmount,, address from, address rebate,,) =
+            assertEq(address(uint160(uint256(logs[i].topics[3]))), address(gateway), "to");
+            (uint256 fromAmount,, address from,,,) =
                 abi.decode(logs[i].data, (uint256, uint256, address, address, uint256, uint256));
             assertEq(fromAmount, 1e18, "fromAmount");
-            assertEq(from, address(hook), "from");
-            assertEq(rebate, address(0), "rebateTo");
+            assertEq(from, address(gateway), "from");
         }
         assertTrue(found, "WooSwap not emitted");
     }
 
     function test_exactIn_movesOraclePrice() public {
         _swap(weth, usdc, -int256(100e18));
-        (uint128 price,,,) = _oracleState(address(weth));
-        assertLt(price, WETH_PRICE, "selling base lowers its price");
-    }
-
-    function _oracleState(address base) internal view returns (uint128, uint64, uint64, bool) {
-        MockWooracle.State memory s = wooracle.state(base);
-        return (s.price, s.spread, s.coeff, s.woFeasible);
+        MockWooracle.State memory s = wooracle.state(address(weth));
+        assertLt(s.price, WETH_PRICE, "selling base lowers its price");
     }
 
     // ── Exact-out (unsupported) ────────────────────────────────────────────────
 
     function test_quote_exactOut_reverts() public {
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
+        PoolId id = _poolId(weth, usdc);
         vm.expectRevert(WOOFiAggregator.ExactOutputNotSupported.selector);
         hook.quote(address(weth) < address(usdc), int256(1e6), id);
     }
@@ -389,7 +192,7 @@ contract WOOFiAggregatorUnitTest is Test {
     // ── Views ──────────────────────────────────────────────────────────────────
 
     function test_pseudoTotalValueLocked() public view {
-        PoolKey memory key = _key(address(weth), address(usdc), 0);
+        PoolKey memory key = _key(address(weth), address(usdc), POOL_FEE);
         (uint256 amount0, uint256 amount1) = hook.pseudoTotalValueLocked(key.toId());
         assertEq(amount0, wooPP.poolSize(Currency.unwrap(key.currency0)));
         assertEq(amount1, wooPP.poolSize(Currency.unwrap(key.currency1)));
@@ -405,20 +208,11 @@ contract WOOFiAggregatorUnitTest is Test {
         hook.pseudoTotalValueLocked(PoolId.wrap(bytes32(uint256(1))));
     }
 
-    // ── Quote executability: swap-only conditions ──────────────────────────────
-
-    function test_wooPPPaused_quoteAndSwapRevert() public {
-        wooPP.pause();
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
-        vm.expectRevert(WOOFiAggregator.WooPPPaused.selector);
-        hook.quote(address(weth) < address(usdc), -1e18, id);
-        vm.expectRevert();
-        _swap(weth, usdc, -1e18);
-    }
+    // ── WooPP rejections pass through ──────────────────────────────────────────
 
     function test_oraclePaused_quoteAndSwapRevert() public {
         wooracle.setPaused(true);
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
+        PoolId id = _poolId(weth, usdc);
         vm.expectRevert(MockWooracle.EnforcedPause.selector);
         hook.quote(address(weth) < address(usdc), -1e18, id);
         vm.expectRevert();
@@ -427,22 +221,22 @@ contract WOOFiAggregatorUnitTest is Test {
 
     function test_oracleInfeasible_quoteReverts() public {
         wooracle.setFeasible(address(weth), false);
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
+        PoolId id = _poolId(weth, usdc);
         vm.expectRevert();
         hook.quote(address(weth) < address(usdc), -1e18, id);
     }
 
-    function test_notionalExceeded_quoteReverts() public {
-        PoolId id = _key(address(weth), address(usdc), 0).toId();
+    function test_wooPPNotionalExceeded_quoteReverts() public {
+        PoolId id = _poolId(weth, usdc);
         vm.expectRevert();
         hook.quote(address(weth) < address(usdc), -int256(uint256(MAX_NOTIONAL) / 3000 * 1e12 + 1e18), id);
     }
 
     // ── Fee rate multipliers ───────────────────────────────────────────────────
 
-    function test_hookFeeMultiplier_appliesToQuoteAndSwap() public {
+    function test_gatewayFeeMultiplier_appliesToQuoteAndSwap() public {
         uint256 baseline = _quote(weth, usdc, 10e18);
-        wooPP.setFeeRateMultiplier(address(hook), 4e5); // 4x fee for Uniswap flow
+        wooPP.setFeeRateMultiplier(address(gateway), 4e5); // 4x fee for Uniswap flow
         uint256 quoted = _assertQuoteMatchesSwap(weth, usdc, 10e18);
         assertLt(quoted, baseline, "higher fee lowers output");
     }
@@ -462,9 +256,10 @@ contract WOOFiAggregatorUnitTest is Test {
     // ── Protocol fee ───────────────────────────────────────────────────────────
 
     function test_protocolFee_exactIn() public {
-        PoolKey memory key = _key(address(weth), address(usdc), 0);
+        PoolKey memory key = _key(address(weth), address(usdc), POOL_FEE);
         uint24 fee = ProtocolFeeLibrary.MAX_PROTOCOL_FEE;
-        _setProtocolFee(key, fee);
+        vm.prank(address(feeAdapter));
+        manager.setProtocolFee(key, (fee << 12) | fee);
 
         uint256 amountIn = 10e18;
         uint256 raw = wooPP.query(address(weth), address(usdc), amountIn);
@@ -504,7 +299,7 @@ contract WOOFiAggregatorUnitTest is Test {
     }
 
     function _checkQuoteImpliesSwap(MockERC20 tokenIn, MockERC20 tokenOut, uint256 amountIn) internal {
-        PoolId id = _key(address(tokenIn), address(tokenOut), 0).toId();
+        PoolId id = _poolId(tokenIn, tokenOut);
         try hook.quote(address(tokenIn) < address(tokenOut), -int256(amountIn), id) returns (uint256 quoted) {
             uint256 outBefore = tokenOut.balanceOf(alice);
             _swap(tokenIn, tokenOut, -int256(amountIn));

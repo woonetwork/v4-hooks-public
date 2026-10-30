@@ -5,26 +5,26 @@ import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IWooPPV2, IWooPPV2Pool, IWooracle} from "./interfaces/IWooPPV2.sol";
+import {IWOOFiGateway} from "./interfaces/IWOOFiGateway.sol";
+import {IWooPPV2, IWooracle} from "./interfaces/IWooPPV2.sol";
 
 /// @title WOOFiGateway
 /// @notice WOOFi-owned wrapper around WooPPV2 that WOOFiAggregator uses in place of the pool, so the hook stays
 ///         immutable and ownerless while WOOFi keeps adjustable risk controls over Uniswap-routed flow
-/// @dev Implements the IWooPPV2 surface the hook calls. `query` and `swap` share every check and the same output
-///      formula, so a router's simulation matches execution in the same state:
+/// @dev `query` and `swap` share every check and the same output formula, so a router's simulation matches
+///      execution in the same state:
 ///      - pause: by any pauser or the owner; only the owner unpauses. A paused WooPP is rejected too
-///      - token allowlist: `tokenInfos` reports non-allowed tokens as unconfigured, so the hook refuses to
-///        register their pools, and `query`/`swap` reject them
+///      - token allowlist: the hook only registers pools of allowed tokens, and `query`/`swap` reject the rest
 ///      - price freshness: reverts when the Wooracle prices are older than `maxPriceAge`
 ///      - age spread: output = WooPP output * (1 - spreadPerSecond * age); the difference stays in the gateway
 ///      - per-swap notional cap (in quote token units), tighter than WooPP's own `maxNotionalSwap`
 ///      Only the hook can swap. Swaps move exact amounts, so the gateway's balance is the retained spread, which
 ///      the owner withdraws.
-contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
+contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
     /// @notice The WooPPV2 pool
-    IWooPPV2Pool public immutable wooPP;
+    IWooPPV2 public immutable wooPP;
 
     /// @notice The only caller allowed to swap (the WOOFiAggregator hook)
     address public hook;
@@ -51,7 +51,6 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     error TokenNotAllowed();
     error StalePrice();
     error NotionalExceeded();
-    error InsufficientOutput();
     error SpreadTooHigh();
 
     modifier onlyPauser() {
@@ -60,39 +59,18 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     }
 
     /// @dev Pricing and the notional cap start at zero, so every quote reverts until the owner configures them
-    constructor(IWooPPV2Pool _wooPP, address _owner) Ownable(_owner) {
+    constructor(IWooPPV2 _wooPP, address _owner) Ownable(_owner) {
         wooPP = _wooPP;
     }
 
-    // ── IWooPPV2 ──────────────────────────────────────────────────────────────
+    // ── IWOOFiGateway ─────────────────────────────────────────────────────────
 
-    /// @inheritdoc IWooPPV2
-    function quoteToken() external view returns (address) {
-        return wooPP.quoteToken();
-    }
-
-    /// @inheritdoc IWooPPV2
+    /// @inheritdoc IWOOFiGateway
     function poolSize(address token) external view returns (uint256) {
         return wooPP.poolSize(token);
     }
 
-    /// @inheritdoc IWooPPV2
-    /// @dev Non-allowed tokens read as unconfigured (all zero), so WOOFiAggregator refuses to register them
-    function tokenInfos(address token)
-        external
-        view
-        returns (uint192 reserve, uint16 feeRate, uint128 maxGamma, uint128 maxNotionalSwap, uint192 capBal)
-    {
-        if (isTokenAllowed[token]) return wooPP.tokenInfos(token);
-    }
-
-    /// @inheritdoc IWooPPV2
-    /// @dev The gateway's own pause state; a paused WooPP is rejected in `_checkSwappable`
-    function paused() public view override(IWooPPV2, Pausable) returns (bool) {
-        return super.paused();
-    }
-
-    /// @inheritdoc IWooPPV2
+    /// @inheritdoc IWOOFiGateway
     function query(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount) {
         uint256 age = _checkSwappable(fromToken, toToken);
         uint256 out = wooPP.query(fromToken, toToken, fromAmount);
@@ -100,26 +78,20 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
         toAmount = _applySpread(out, age);
     }
 
-    /// @inheritdoc IWooPPV2
-    /// @dev `fromAmount` must already be in the gateway (push model, sent by the hook)
-    function swap(
-        address fromToken,
-        address toToken,
-        uint256 fromAmount,
-        uint256 minToAmount,
-        address to,
-        address rebateTo
-    ) external returns (uint256 realToAmount) {
+    /// @inheritdoc IWOOFiGateway
+    function swap(address fromToken, address toToken, uint256 fromAmount, address to)
+        external
+        returns (uint256 toAmount)
+    {
         if (msg.sender != hook) revert NotHook();
         uint256 age = _checkSwappable(fromToken, toToken);
 
         IERC20(fromToken).safeTransfer(address(wooPP), fromAmount);
-        uint256 out = wooPP.swap(fromToken, toToken, fromAmount, 0, address(this), rebateTo);
+        uint256 out = wooPP.swap(fromToken, toToken, fromAmount, 0, address(this), address(0));
         _checkNotional(fromToken, toToken, fromAmount, out);
 
-        realToAmount = _applySpread(out, age);
-        if (realToAmount < minToAmount) revert InsufficientOutput();
-        IERC20(toToken).safeTransfer(to, realToAmount);
+        toAmount = _applySpread(out, age);
+        IERC20(toToken).safeTransfer(to, toAmount);
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────
