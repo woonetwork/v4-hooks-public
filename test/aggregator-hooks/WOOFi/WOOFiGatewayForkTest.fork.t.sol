@@ -166,8 +166,7 @@ contract WOOFiGatewayForkTest is Test {
 
     function test_fork_stalePrice_reverts() public {
         vm.warp(block.timestamp + MAX_PRICE_AGE + 1);
-        uint256 age = _priceAge();
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.StalePrice.selector, age));
+        vm.expectRevert(WOOFiGateway.StalePrice.selector);
         hook.quote(WETH < USDC, -1e18, _key(WETH, USDC).toId());
     }
 

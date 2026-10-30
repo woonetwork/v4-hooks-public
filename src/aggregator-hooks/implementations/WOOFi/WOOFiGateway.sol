@@ -23,8 +23,6 @@ import {IWooPPV2, IWooPPV2Pool, IWooracle} from "./interfaces/IWooPPV2.sol";
 contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
-    uint256 internal constant WAD = 1e18;
-
     /// @notice The WooPPV2 pool
     IWooPPV2Pool public immutable wooPP;
 
@@ -34,7 +32,7 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     /// @notice Max age, in seconds, of the Wooracle prices a quote or swap may use
     uint256 public maxPriceAge;
 
-    /// @notice Extra spread per second of price age, in WAD (1e18 = 100%)
+    /// @notice Extra spread per second of price age, 18 decimals (1e18 = 100%) like the Wooracle spread
     uint256 public spreadPerSecond;
 
     /// @notice Max notional per swap, in quote token units
@@ -50,11 +48,11 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     error NotHook();
     error NotPauser();
     error GatewayPaused();
-    error TokenNotAllowed(address token);
-    error StalePrice(uint256 age);
-    error NotionalExceeded(uint256 notional);
+    error TokenNotAllowed();
+    error StalePrice();
+    error NotionalExceeded();
     error InsufficientOutput();
-    error InvalidPricing();
+    error SpreadTooHigh();
 
     modifier onlyPauser() {
         if (!isPauser[msg.sender] && msg.sender != owner()) revert NotPauser();
@@ -150,7 +148,7 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
 
     /// @dev The spread at the oldest allowed price must stay below 100%
     function setPricing(uint256 _maxPriceAge, uint256 _spreadPerSecond) external onlyOwner {
-        if (_spreadPerSecond * _maxPriceAge >= WAD) revert InvalidPricing();
+        if (_spreadPerSecond * _maxPriceAge >= 1e18) revert SpreadTooHigh();
         maxPriceAge = _maxPriceAge;
         spreadPerSecond = _spreadPerSecond;
     }
@@ -170,11 +168,10 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     /// @return age Seconds since the keeper last posted Wooracle prices
     function _checkSwappable(address fromToken, address toToken) internal view returns (uint256 age) {
         if (paused() || wooPP.paused()) revert GatewayPaused();
-        if (!isTokenAllowed[fromToken]) revert TokenNotAllowed(fromToken);
-        if (!isTokenAllowed[toToken]) revert TokenNotAllowed(toToken);
+        if (!isTokenAllowed[fromToken] || !isTokenAllowed[toToken]) revert TokenNotAllowed();
         uint256 postedAt = IWooracle(wooPP.wooracle()).timestamp();
         age = block.timestamp > postedAt ? block.timestamp - postedAt : 0;
-        if (age > maxPriceAge) revert StalePrice(age);
+        if (age > maxPriceAge) revert StalePrice();
     }
 
     /// @dev Notional in quote token units: the quote leg when there is one, else the base input priced in quote
@@ -182,11 +179,11 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
         address quote = wooPP.quoteToken();
         uint256 notional =
             fromToken == quote ? fromAmount : toToken == quote ? out : wooPP.tryQuery(fromToken, quote, fromAmount);
-        if (notional > maxNotionalPerSwap) revert NotionalExceeded(notional);
+        if (notional > maxNotionalPerSwap) revert NotionalExceeded();
     }
 
     /// @dev Rounds the output down, in WOOFi's favor
     function _applySpread(uint256 out, uint256 age) internal view returns (uint256) {
-        return out * (WAD - spreadPerSecond * age) / WAD;
+        return out * (1e18 - spreadPerSecond * age) / 1e18;
     }
 }

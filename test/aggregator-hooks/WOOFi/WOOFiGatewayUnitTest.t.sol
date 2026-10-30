@@ -250,11 +250,11 @@ contract WOOFiGatewayUnitTest is Test {
 
     function test_stalePrice_quoteAndSwapRevert() public {
         _setPriceAge(MAX_PRICE_AGE + 1);
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.StalePrice.selector, MAX_PRICE_AGE + 1));
+        vm.expectRevert(WOOFiGateway.StalePrice.selector);
         gateway.query(address(weth), address(usdc), 1e18);
 
         PoolId id = _key(address(weth), address(usdc)).toId();
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.StalePrice.selector, MAX_PRICE_AGE + 1));
+        vm.expectRevert(WOOFiGateway.StalePrice.selector);
         hook.quote(address(weth) < address(usdc), -1e18, id);
 
         vm.expectRevert();
@@ -279,9 +279,9 @@ contract WOOFiGatewayUnitTest is Test {
 
     function test_tokenDisallowed_quoteAndSwapRevert() public {
         gateway.setTokenAllowed(address(weth), false);
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.TokenNotAllowed.selector, address(weth)));
+        vm.expectRevert(WOOFiGateway.TokenNotAllowed.selector);
         gateway.query(address(weth), address(usdc), 1e18);
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.TokenNotAllowed.selector, address(weth)));
+        vm.expectRevert(WOOFiGateway.TokenNotAllowed.selector);
         gateway.query(address(usdc), address(weth), 1e6);
         vm.expectRevert();
         _swap(weth, usdc, 1e18);
@@ -291,7 +291,7 @@ contract WOOFiGatewayUnitTest is Test {
 
     function test_notional_sellQuote() public {
         gateway.query(address(usdc), address(weth), MAX_NOTIONAL_PER_SWAP);
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.NotionalExceeded.selector, MAX_NOTIONAL_PER_SWAP + 1));
+        vm.expectRevert(WOOFiGateway.NotionalExceeded.selector);
         gateway.query(address(usdc), address(weth), MAX_NOTIONAL_PER_SWAP + 1);
     }
 
@@ -304,8 +304,7 @@ contract WOOFiGatewayUnitTest is Test {
 
     function test_notional_baseToBase_pricesInputInQuote() public {
         gateway.query(address(weth), address(wbtc), 300e18);
-        uint256 notional = wooPP.tryQuery(address(weth), address(usdc), 340e18);
-        vm.expectRevert(abi.encodeWithSelector(WOOFiGateway.NotionalExceeded.selector, notional));
+        vm.expectRevert(WOOFiGateway.NotionalExceeded.selector);
         gateway.query(address(weth), address(wbtc), 340e18);
     }
 
@@ -404,7 +403,7 @@ contract WOOFiGatewayUnitTest is Test {
         gateway.setPricing(10, 2e14);
         assertEq(gateway.maxPriceAge(), 10);
         assertEq(gateway.spreadPerSecond(), 2e14);
-        vm.expectRevert(WOOFiGateway.InvalidPricing.selector);
+        vm.expectRevert(WOOFiGateway.SpreadTooHigh.selector);
         gateway.setPricing(10, 1e17);
     }
 
