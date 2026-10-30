@@ -11,6 +11,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockERC20} from "solmate/src/test/utils/mocks/MockERC20.sol";
 import {HookMiner} from "../../../src/utils/HookMiner.sol";
@@ -336,8 +337,10 @@ contract WOOFiGatewayUnitTest is Test {
     }
 
     function test_pause_byOwner() public {
+        vm.expectEmit(address(gateway));
+        emit Pausable.Paused(address(this));
         gateway.pause();
-        assertTrue(gateway.gatewayPaused());
+        assertTrue(gateway.paused());
     }
 
     function test_pause_notPauser_reverts() public {
@@ -346,12 +349,17 @@ contract WOOFiGatewayUnitTest is Test {
         gateway.pause();
     }
 
-    function test_wooPPPaused_countsAsPaused() public {
+    function test_wooPPPaused_quoteReverts() public {
         wooPP.pause();
-        assertTrue(gateway.paused());
-        assertFalse(gateway.gatewayPaused());
+        assertFalse(gateway.paused(), "gateway's own state");
         vm.expectRevert(WOOFiGateway.GatewayPaused.selector);
         gateway.query(address(weth), address(usdc), 1e18);
+        vm.expectRevert();
+        _swap(weth, usdc, 1e18);
+
+        // The gateway can still be paused while WooPP is
+        gateway.pause();
+        assertTrue(gateway.paused());
     }
 
     // ── Access control ─────────────────────────────────────────────────────────

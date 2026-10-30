@@ -2,6 +2,7 @@
 pragma solidity 0.8.29;
 
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWooPPV2, IWooPPV2Pool, IWooracle} from "./interfaces/IWooPPV2.sol";
@@ -11,7 +12,7 @@ import {IWooPPV2, IWooPPV2Pool, IWooracle} from "./interfaces/IWooPPV2.sol";
 ///         immutable and ownerless while WOOFi keeps adjustable risk controls over Uniswap-routed flow
 /// @dev Implements the IWooPPV2 surface the hook calls. `query` and `swap` share every check and the same output
 ///      formula, so a router's simulation matches execution in the same state:
-///      - pause: by any pauser or the owner; only the owner unpauses. A paused WooPP also counts as paused
+///      - pause: by any pauser or the owner; only the owner unpauses. A paused WooPP is rejected too
 ///      - token allowlist: `tokenInfos` reports non-allowed tokens as unconfigured, so the hook refuses to
 ///        register their pools, and `query`/`swap` reject them
 ///      - price freshness: reverts when the Wooracle prices are older than `maxPriceAge`
@@ -19,7 +20,7 @@ import {IWooPPV2, IWooPPV2Pool, IWooracle} from "./interfaces/IWooPPV2.sol";
 ///      - per-swap notional cap (in quote token units), tighter than WooPP's own `maxNotionalSwap`
 ///      Only the hook can swap. Swaps move exact amounts, so the gateway's balance is the retained spread, which
 ///      the owner withdraws.
-contract WOOFiGateway is IWooPPV2, Ownable2Step {
+contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
     uint256 internal constant WAD = 1e18;
@@ -29,9 +30,6 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
 
     /// @notice The only caller allowed to swap (the WOOFiAggregator hook)
     address public hook;
-
-    /// @notice Whether the gateway itself is paused (see `paused` for the effective state)
-    bool public gatewayPaused;
 
     /// @notice Max age, in seconds, of the Wooracle prices a quote or swap may use
     uint256 public maxPriceAge;
@@ -46,11 +44,7 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
     mapping(address account => bool) public isPauser;
 
     event HookSet(address hook);
-    event PausedSet(bool paused);
     event PauserSet(address account, bool flag);
-    event TokenAllowedSet(address token, bool allowed);
-    event PricingSet(uint256 maxPriceAge, uint256 spreadPerSecond);
-    event MaxNotionalPerSwapSet(uint256 maxNotionalPerSwap);
     event Withdrawn(address token, address to, uint256 amount);
 
     error NotHook();
@@ -77,7 +71,6 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
         wooPP = _wooPP;
         _setPricing(_maxPriceAge, _spreadPerSecond);
         maxNotionalPerSwap = _maxNotionalPerSwap;
-        emit MaxNotionalPerSwapSet(_maxNotionalPerSwap);
     }
 
     // ── IWooPPV2 ──────────────────────────────────────────────────────────────
@@ -103,8 +96,9 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
     }
 
     /// @inheritdoc IWooPPV2
-    function paused() public view returns (bool) {
-        return gatewayPaused || wooPP.paused();
+    /// @dev The gateway's own pause state; a paused WooPP is rejected in `_checkSwappable`
+    function paused() public view override(IWooPPV2, Pausable) returns (bool) {
+        return super.paused();
     }
 
     /// @inheritdoc IWooPPV2
@@ -145,13 +139,11 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
     }
 
     function pause() external onlyPauser {
-        gatewayPaused = true;
-        emit PausedSet(true);
+        _pause();
     }
 
     function unpause() external onlyOwner {
-        gatewayPaused = false;
-        emit PausedSet(false);
+        _unpause();
     }
 
     function setPauser(address account, bool flag) external onlyOwner {
@@ -161,7 +153,6 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
 
     function setTokenAllowed(address token, bool allowed) external onlyOwner {
         isTokenAllowed[token] = allowed;
-        emit TokenAllowedSet(token, allowed);
     }
 
     function setPricing(uint256 _maxPriceAge, uint256 _spreadPerSecond) external onlyOwner {
@@ -170,7 +161,6 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
 
     function setMaxNotionalPerSwap(uint256 _maxNotionalPerSwap) external onlyOwner {
         maxNotionalPerSwap = _maxNotionalPerSwap;
-        emit MaxNotionalPerSwapSet(_maxNotionalPerSwap);
     }
 
     /// @notice Withdraws retained spread
@@ -186,12 +176,11 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step {
         if (_spreadPerSecond * _maxPriceAge >= WAD) revert InvalidPricing();
         maxPriceAge = _maxPriceAge;
         spreadPerSecond = _spreadPerSecond;
-        emit PricingSet(_maxPriceAge, _spreadPerSecond);
     }
 
     /// @return age Seconds since the keeper last posted Wooracle prices
     function _checkSwappable(address fromToken, address toToken) internal view returns (uint256 age) {
-        if (paused()) revert GatewayPaused();
+        if (paused() || wooPP.paused()) revert GatewayPaused();
         if (!isTokenAllowed[fromToken]) revert TokenNotAllowed(fromToken);
         if (!isTokenAllowed[toToken]) revert TokenNotAllowed(toToken);
         uint256 postedAt = IWooracle(wooPP.wooracle()).timestamp();
