@@ -76,9 +76,9 @@ contract WOOFiGatewayUnitTest is Test {
         _deposit(weth, WETH_RESERVE);
         _deposit(wbtc, WBTC_RESERVE);
 
-        gateway = new WOOFiGateway(
-            IWooPPV2Pool(address(wooPP)), address(this), MAX_PRICE_AGE, SPREAD_PER_SECOND, MAX_NOTIONAL_PER_SWAP
-        );
+        gateway = new WOOFiGateway(IWooPPV2Pool(address(wooPP)), address(this));
+        gateway.setPricing(MAX_PRICE_AGE, SPREAD_PER_SECOND);
+        gateway.setMaxNotionalPerSwap(MAX_NOTIONAL_PER_SWAP);
         gateway.setTokenAllowed(address(usdc), true);
         gateway.setTokenAllowed(address(weth), true);
         gateway.setTokenAllowed(address(wbtc), true);
@@ -205,9 +205,13 @@ contract WOOFiGatewayUnitTest is Test {
         assertEq(address(hook.wooPP()), address(gateway));
     }
 
-    function test_constructor_invalidPricing_reverts() public {
-        vm.expectRevert(WOOFiGateway.InvalidPricing.selector);
-        new WOOFiGateway(IWooPPV2Pool(address(wooPP)), address(this), 10, 1e17, 0);
+    function test_unconfigured_rejectsQuotes() public {
+        WOOFiGateway fresh = new WOOFiGateway(IWooPPV2Pool(address(wooPP)), address(this));
+        fresh.setTokenAllowed(address(weth), true);
+        fresh.setTokenAllowed(address(usdc), true);
+        assertEq(fresh.maxNotionalPerSwap(), 0);
+        vm.expectRevert();
+        fresh.query(address(weth), address(usdc), 1e18);
     }
 
     function test_passthroughViews() public view {

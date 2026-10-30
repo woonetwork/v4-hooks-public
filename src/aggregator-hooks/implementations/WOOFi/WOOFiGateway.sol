@@ -61,16 +61,9 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
         _;
     }
 
-    constructor(
-        IWooPPV2Pool _wooPP,
-        address _owner,
-        uint256 _maxPriceAge,
-        uint256 _spreadPerSecond,
-        uint256 _maxNotionalPerSwap
-    ) Ownable(_owner) {
+    /// @dev Pricing and the notional cap start at zero, so every quote reverts until the owner configures them
+    constructor(IWooPPV2Pool _wooPP, address _owner) Ownable(_owner) {
         wooPP = _wooPP;
-        _setPricing(_maxPriceAge, _spreadPerSecond);
-        maxNotionalPerSwap = _maxNotionalPerSwap;
     }
 
     // ── IWooPPV2 ──────────────────────────────────────────────────────────────
@@ -155,8 +148,11 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
         isTokenAllowed[token] = allowed;
     }
 
+    /// @dev The spread at the oldest allowed price must stay below 100%
     function setPricing(uint256 _maxPriceAge, uint256 _spreadPerSecond) external onlyOwner {
-        _setPricing(_maxPriceAge, _spreadPerSecond);
+        if (_spreadPerSecond * _maxPriceAge >= WAD) revert InvalidPricing();
+        maxPriceAge = _maxPriceAge;
+        spreadPerSecond = _spreadPerSecond;
     }
 
     function setMaxNotionalPerSwap(uint256 _maxNotionalPerSwap) external onlyOwner {
@@ -170,13 +166,6 @@ contract WOOFiGateway is IWooPPV2, Ownable2Step, Pausable {
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
-
-    /// @dev The spread at the oldest allowed price must stay below 100%
-    function _setPricing(uint256 _maxPriceAge, uint256 _spreadPerSecond) internal {
-        if (_spreadPerSecond * _maxPriceAge >= WAD) revert InvalidPricing();
-        maxPriceAge = _maxPriceAge;
-        spreadPerSecond = _spreadPerSecond;
-    }
 
     /// @return age Seconds since the keeper last posted Wooracle prices
     function _checkSwappable(address fromToken, address toToken) internal view returns (uint256 age) {

@@ -70,7 +70,9 @@ contract WOOFiGatewayForkTest is Test {
         wooPP = IWooPPV2Pool(vm.envOr("WOOPP_8453", DEFAULT_WOOPP));
         require(wooPP.quoteToken() == USDC, "unexpected WooPP quote token");
 
-        gateway = new WOOFiGateway(wooPP, address(this), MAX_PRICE_AGE, SPREAD_PER_SECOND, MAX_NOTIONAL_PER_SWAP);
+        gateway = new WOOFiGateway(wooPP, address(this));
+        gateway.setPricing(MAX_PRICE_AGE, SPREAD_PER_SECOND);
+        gateway.setMaxNotionalPerSwap(MAX_NOTIONAL_PER_SWAP);
         gateway.setTokenAllowed(USDC, true);
         gateway.setTokenAllowed(WETH, true);
         gateway.setTokenAllowed(CBBTC, true);
