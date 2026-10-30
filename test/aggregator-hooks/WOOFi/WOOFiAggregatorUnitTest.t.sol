@@ -44,6 +44,8 @@ contract WOOFiAggregatorUnitTest is Test {
 
     string constant WOOPP_BYTECODE_PATH = "test/aggregator-hooks/WOOFi/precompile/WooPPV2.bin";
 
+    uint24 constant POOL_FEE = 0; // mirrors WOOFiAggregator.POOL_FEE (checked in test_poolParameters)
+    int24 constant POOL_TICK_SPACING = 1; // mirrors WOOFiAggregator.POOL_TICK_SPACING
     uint160 constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
     uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
     uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
@@ -163,7 +165,7 @@ contract WOOFiAggregatorUnitTest is Test {
             currency0: Currency.wrap(t0),
             currency1: Currency.wrap(t1),
             fee: fee,
-            tickSpacing: 1,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(address(hook))
         });
     }
@@ -233,6 +235,11 @@ contract WOOFiAggregatorUnitTest is Test {
         assertEq(hook.tokenJar(), tokenJar);
     }
 
+    function test_poolParameters() public view {
+        assertEq(hook.POOL_FEE(), POOL_FEE);
+        assertEq(hook.POOL_TICK_SPACING(), POOL_TICK_SPACING);
+    }
+
     function test_hookPermissions() public view {
         Hooks.Permissions memory p = hook.getHookPermissions();
         assertTrue(p.beforeSwap);
@@ -256,8 +263,8 @@ contract WOOFiAggregatorUnitTest is Test {
         (Currency c0, Currency c1, uint24 fee, int24 tickSpacing, IHooks hooks) = hook.poolKeys(expected.toId());
         assertEq(Currency.unwrap(c0), Currency.unwrap(expected.currency0));
         assertEq(Currency.unwrap(c1), Currency.unwrap(expected.currency1));
-        assertEq(fee, 0);
-        assertEq(tickSpacing, 1);
+        assertEq(fee, POOL_FEE);
+        assertEq(tickSpacing, POOL_TICK_SPACING);
         assertEq(address(hooks), address(hook));
     }
 
@@ -265,8 +272,8 @@ contract WOOFiAggregatorUnitTest is Test {
         PoolKey memory key = PoolKey({
             currency0: CurrencyLibrary.ADDRESS_ZERO,
             currency1: Currency.wrap(address(usdc)),
-            fee: 0,
-            tickSpacing: 1,
+            fee: POOL_FEE,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(address(hook))
         });
         vm.expectRevert();

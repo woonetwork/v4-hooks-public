@@ -33,6 +33,8 @@ abstract contract WOOFiForkBase is Test {
     address constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
     address constant WBTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
 
+    uint24 constant POOL_FEE = 0; // WOOFiAggregator.POOL_FEE
+    int24 constant POOL_TICK_SPACING = 1; // WOOFiAggregator.POOL_TICK_SPACING
     uint160 constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
     uint160 constant MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
     uint160 constant MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
@@ -87,8 +89,8 @@ abstract contract WOOFiForkBase is Test {
         return PoolKey({
             currency0: Currency.wrap(t0),
             currency1: Currency.wrap(t1),
-            fee: 0,
-            tickSpacing: 1,
+            fee: POOL_FEE,
+            tickSpacing: POOL_TICK_SPACING,
             hooks: IHooks(address(hook))
         });
     }

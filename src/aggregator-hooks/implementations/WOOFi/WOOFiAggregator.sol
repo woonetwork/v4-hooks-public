@@ -19,6 +19,12 @@ import {IWooPPV2} from "./interfaces/IWooPPV2.sol";
 ///      WooPP uses a push model: input is taken from the PoolManager straight to WooPP and WooPP sends the output
 ///      straight to the PoolManager, so tokens never pass through the hook and no approvals are needed.
 contract WOOFiAggregator is BaseAggregatorHook {
+    /// @notice The only LP fee a pool using this hook may have. See `_beforeInitialize`.
+    uint24 public constant POOL_FEE = 0;
+
+    /// @notice The only tick spacing a pool using this hook may have. See `_beforeInitialize`.
+    int24 public constant POOL_TICK_SPACING = 1;
+
     /// @notice The WooPPV2 pool
     IWooPPV2 public immutable wooPP;
 
@@ -65,11 +71,14 @@ contract WOOFiAggregator is BaseAggregatorHook {
         amountUnspecified = wooPP.query(Currency.unwrap(tokenIn), Currency.unwrap(tokenOut), uint256(-amountSpecified));
     }
 
-    /// @dev Fixing fee and tickSpacing (unused, as the hook fills the whole swap) leaves one PoolKey per pair, so
-    ///      the PoolManager's no-reinitialization rule enforces one pool per pair.
-    ///      Native currency is rejected too: address(0) is neither the quote token nor a configured base token.
+    /// @notice Registers a pool; called once per pool when anyone runs `PoolManager.initialize` with this hook
+    /// @dev `fee` and `tickSpacing` are the only free PoolKey fields for a given pair, and neither affects trading:
+    ///      the hook fills the whole swap, so v4 never charges the LP fee or crosses a tick. Fixing them leaves one
+    ///      PoolKey per pair, so the PoolManager (which initializes a PoolKey only once) enforces one pool per pair,
+    ///      and nobody can claim a pair first with a misleading fee. Routers can derive the PoolKey directly.
+    ///      Each token must be WooPP's quote token or an enabled base token, which also rules out native currency.
     function _beforeInitialize(address, PoolKey calldata key, uint160) internal override returns (bytes4) {
-        if (key.fee != 0 || key.tickSpacing != 1) revert InvalidPoolKey();
+        if (key.fee != POOL_FEE || key.tickSpacing != POOL_TICK_SPACING) revert InvalidPoolKey();
 
         address token0 = Currency.unwrap(key.currency0);
         address token1 = Currency.unwrap(key.currency1);
