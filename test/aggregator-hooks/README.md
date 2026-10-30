@@ -74,6 +74,8 @@ Uni V3, Slipstream, and Pancake V3 aggregator hooks quote by simulating swaps on
 
 **Arbitrum (42161):** **WOOFi** (`WOOFiAggregatorForkTest`, `WOOFiAggregatorFuzzForkTest`) uses `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161`, and skips when the RPC is unset. `POOL_MANAGER_42161` and `WOOPP_42161` default to the live PoolManager (`0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32`) and WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`). Do not warp the fork: Wooracle prices go stale after `staleDuration` (300s) and every quote and swap then reverts. The WOOFi unit tests run against the real WooPPV2 bytecode in `test/aggregator-hooks/WOOFi/precompile/WooPPV2.bin` (built from `woonetwork/woofi-evm` `contracts/spmm/WooPPV2.sol`, solc 0.8.24, via-ir, 200 runs) behind an ERC1967 proxy, with a mock Wooracle.
 
+**Base (8453), WOOFi:** `WOOFiGatewayForkTest` routes through `WOOFiGateway` to the live WooPPV2 for ETH, cbBTC and USDC, using `FORK_RPC_URL_8453` (skips when unset). `POOL_MANAGER_8453` and `WOOPP_8453` default to `0x498581fF718922c3f8e6A244956aF099B2652b2b` and `0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`.
+
 **Base shared:** set `POOL_MANAGER_8453` to the Uniswap v4 **PoolManager** on Base ([deployments](https://docs.uniswap.org/contracts/v4/deployments)).
 
 Example:

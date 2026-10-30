@@ -15,6 +15,7 @@ contract MockWooracle {
 
     address public quoteToken;
     address public wooPP;
+    uint256 public timestamp;
     bool public paused;
 
     mapping(address => State) internal _states;
@@ -36,6 +37,12 @@ contract MockWooracle {
 
     function setState(address base, uint128 _price, uint64 _spread, uint64 _coeff, bool _feasible) external {
         _states[base] = State({price: _price, spread: _spread, coeff: _coeff, woFeasible: _feasible});
+        timestamp = block.timestamp;
+    }
+
+    /// @dev When the keeper last posted prices, as WooracleV2_2 tracks it
+    function setTimestamp(uint256 _timestamp) external {
+        timestamp = _timestamp;
     }
 
     function setFeasible(address base, bool _feasible) external {

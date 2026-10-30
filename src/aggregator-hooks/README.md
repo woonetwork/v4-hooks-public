@@ -178,6 +178,21 @@ Singleton hook routes swaps through **WOOFi's WooPPV2**, a synthetic proactive m
 - **Attribution**: Uniswap flow is identifiable in WooPP's `WooSwap` events by `from == hook`
 - **Migration**: a WooPP migration to a new pool address requires a new hook deployment
 
+#### WOOFiGateway
+
+The hook itself is immutable and ownerless. WOOFi deploys it pointing at a `WOOFiGateway` instead of WooPPV2 directly: a WOOFi-owned contract implementing the same `IWooPPV2` surface, which applies adjustable risk controls to Uniswap-routed flow only:
+
+```
+Uniswap Router → PoolManager → WOOFiAggregator (immutable) → WOOFiGateway (WOOFi-owned) → WooPPV2 ← Wooracle ← keeper
+```
+
+- **Price freshness**: `query`/`swap` revert when the Wooracle prices are older than `maxPriceAge`
+- **Age spread**: output = WooPP output × (1 − `spreadPerSecond` × age); the difference stays in the gateway for the owner to withdraw. `query` and `swap` use the same formula, so router simulation matches execution
+- **Token allowlist**: non-allowed tokens read as unconfigured, so their pools cannot be registered, and `query`/`swap` reject them
+- **Per-swap notional cap** in quote token units, tighter than WooPP's `maxNotionalSwap`
+- **Pause**: pausers or the owner pause; only the owner unpauses. While paused (or while WooPP is paused) quotes revert, so routers stop sending flow
+- Only the hook can call `swap`
+
 #### Defined interfaces
 
 A minimal `IWooPPV2` interface lives under `implementations/WOOFi/interfaces/` for the subset of the WooPPV2 ABI (`woonetwork/woofi-evm`, `contracts/spmm/WooPPV2.sol`) the hook uses.

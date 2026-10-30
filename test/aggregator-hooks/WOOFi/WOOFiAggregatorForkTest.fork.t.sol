@@ -155,7 +155,10 @@ contract WOOFiAggregatorForkTest is WOOFiForkBase {
     }
 
     function test_fork_usdt_sellQuote() public {
-        _assertQuoteMatchesSwap(USDC, USDT, 1000e6);
+        // Size by the live USDT reserve, which trading can drain below a fixed amount
+        uint256 amountIn = wooPP.poolSize(USDT) / 2;
+        if (amountIn > 1000e6) amountIn = 1000e6;
+        _assertQuoteMatchesSwap(USDC, USDT, amountIn);
     }
 
     function test_fork_pseudoTotalValueLocked() public view {

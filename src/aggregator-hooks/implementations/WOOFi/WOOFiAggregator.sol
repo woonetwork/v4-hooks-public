@@ -25,7 +25,7 @@ contract WOOFiAggregator is BaseAggregatorHook {
     /// @notice The only tick spacing a pool using this hook may have. See `_beforeInitialize`.
     int24 public constant POOL_TICK_SPACING = 1;
 
-    /// @notice The WooPPV2 pool
+    /// @notice The WooPPV2 pool, or a WOOFiGateway in front of it
     IWooPPV2 public immutable wooPP;
 
     /// @notice PoolKey of each registered pool
@@ -38,7 +38,7 @@ contract WOOFiAggregator is BaseAggregatorHook {
     error WooPPPaused();
 
     /// @param _manager The Uniswap V4 PoolManager contract
-    /// @param _wooPP The WooPPV2 pool
+    /// @param _wooPP The WooPPV2 pool, or a WOOFiGateway in front of it
     constructor(IPoolManager _manager, IWooPPV2 _wooPP) BaseAggregatorHook(_manager, "WOOFiAggregator v1.0") {
         wooPP = _wooPP;
     }

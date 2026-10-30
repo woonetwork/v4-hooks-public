@@ -19,11 +19,11 @@ import {SafePoolSwapTest} from "../shared/SafePoolSwapTest.sol";
 import {MockV4FeeAdapter} from "../mocks/MockV4FeeAdapter.sol";
 import {IAggregatorHook} from "../../../src/aggregator-hooks/interfaces/IAggregatorHook.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
-import {IWooPPV2} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
+import {IWooPPV2, IWooPPV2Pool} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 import {MockWooracle} from "./mocks/MockWooracle.sol";
 
 /// @notice Admin surface of WooPPV2 used to configure the pool in tests
-interface IWooPPV2Admin is IWooPPV2 {
+interface IWooPPV2Admin is IWooPPV2Pool {
     function initialize(address owner, address quoteToken, address wooracle, address feeAddr) external;
     function setTokenInfo(address token, uint16 feeRate, uint128 maxGamma, uint128 maxNotionalSwap, uint192 capBal)
         external;
