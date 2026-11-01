@@ -229,6 +229,20 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
         gateway.swap(address(weth), address(usdc), 1e18, alice);
     }
 
+    function test_riskSetters_emitEvents() public {
+        vm.expectEmit(address(gateway));
+        emit WOOFiGateway.TokenAllowedSet(alice, true);
+        gateway.setTokenAllowed(alice, true);
+
+        vm.expectEmit(address(gateway));
+        emit WOOFiGateway.PricingSet(10, 2e14);
+        gateway.setPricing(10, 2e14);
+
+        vm.expectEmit(address(gateway));
+        emit WOOFiGateway.MaxNotionalPerSwapSet(1000e6);
+        gateway.setMaxNotionalPerSwap(1000e6);
+    }
+
     function test_setHook_onlyOnce() public {
         vm.expectRevert(WOOFiGateway.HookAlreadySet.selector);
         gateway.setHook(alice);

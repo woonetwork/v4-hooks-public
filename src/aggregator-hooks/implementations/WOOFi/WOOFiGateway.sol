@@ -45,6 +45,9 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
 
     event HookSet(address hook);
     event PauserSet(address account, bool flag);
+    event TokenAllowedSet(address token, bool allowed);
+    event PricingSet(uint256 maxPriceAge, uint256 spreadPerSecond);
+    event MaxNotionalPerSwapSet(uint256 maxNotionalPerSwap);
     event Withdrawn(address token, address to, uint256 amount);
 
     error NotHook();
@@ -119,6 +122,7 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
 
     function setTokenAllowed(address token, bool allowed) external onlyOwner {
         isTokenAllowed[token] = allowed;
+        emit TokenAllowedSet(token, allowed);
     }
 
     /// @dev The spread at the oldest allowed price must stay below 100%, and the max age within the Wooracle's own
@@ -128,10 +132,12 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
         if (_maxPriceAge > IWooracle(wooPP.wooracle()).staleDuration()) revert MaxPriceAgeTooLong();
         maxPriceAge = _maxPriceAge;
         spreadPerSecond = _spreadPerSecond;
+        emit PricingSet(_maxPriceAge, _spreadPerSecond);
     }
 
     function setMaxNotionalPerSwap(uint256 _maxNotionalPerSwap) external onlyOwner {
         maxNotionalPerSwap = _maxNotionalPerSwap;
+        emit MaxNotionalPerSwapSet(_maxNotionalPerSwap);
     }
 
     /// @notice Withdraws retained spread
