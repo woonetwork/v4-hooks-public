@@ -155,6 +155,19 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
         gateway.query(address(weth), address(wbtc), 340e18);
     }
 
+    /// @dev The swap measures base → base notional before trading. Measured after, the input token's price would
+    ///      already be pushed down by the trade, letting an over-cap swap through that `query` rejects.
+    function test_notional_baseToBase_swapUsesPreTradeNotional() public {
+        uint256 amountIn = 100e18;
+        uint256 preTrade = wooPP.tryQuery(address(weth), address(usdc), amountIn);
+        gateway.setMaxNotionalPerSwap(preTrade - 1);
+
+        vm.expectRevert(WOOFiGateway.NotionalExceeded.selector);
+        gateway.query(address(weth), address(wbtc), amountIn);
+        vm.expectRevert();
+        _swap(weth, wbtc, -int256(amountIn));
+    }
+
     function test_notional_swapReverts() public {
         gateway.setMaxNotionalPerSwap(1000e6);
         vm.expectRevert();

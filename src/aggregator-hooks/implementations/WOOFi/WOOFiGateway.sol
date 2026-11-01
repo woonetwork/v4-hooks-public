@@ -73,10 +73,8 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
 
     /// @inheritdoc IWOOFiGateway
     function query(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount) {
-        uint256 age = _checkSwappable(fromToken, toToken);
-        uint256 out = wooPP.query(fromToken, toToken, fromAmount);
-        _checkNotional(fromToken, toToken, fromAmount, out);
-        toAmount = _applySpread(out, age);
+        uint256 age = _checkSwappable(fromToken, toToken, fromAmount);
+        toAmount = _applySpread(wooPP.query(fromToken, toToken, fromAmount), age);
     }
 
     /// @inheritdoc IWOOFiGateway
@@ -85,12 +83,10 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
         returns (uint256 toAmount)
     {
         if (msg.sender != hook) revert NotHook();
-        uint256 age = _checkSwappable(fromToken, toToken);
+        uint256 age = _checkSwappable(fromToken, toToken, fromAmount);
 
         IERC20(fromToken).safeTransfer(address(wooPP), fromAmount);
         uint256 out = wooPP.swap(fromToken, toToken, fromAmount, 0, address(this), address(0));
-        _checkNotional(fromToken, toToken, fromAmount, out);
-
         toAmount = _applySpread(out, age);
         IERC20(toToken).safeTransfer(to, toAmount);
     }
@@ -140,21 +136,24 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
+    /// @dev Runs before WooPP is touched, so `query` and `swap` check the same pre-trade state. The notional is the
+    ///      input in quote token units: the input itself when it is the quote token, else priced through WooPP.
     /// @return age Seconds since the keeper last posted Wooracle prices
-    function _checkSwappable(address fromToken, address toToken) internal view returns (uint256 age) {
+    function _checkSwappable(address fromToken, address toToken, uint256 fromAmount)
+        internal
+        view
+        returns (uint256 age)
+    {
         if (paused() || wooPP.paused()) revert GatewayPaused();
         if (!isTokenAllowed[fromToken] || !isTokenAllowed[toToken]) revert TokenNotAllowed();
+
         uint256 postedAt = IWooracle(wooPP.wooracle()).timestamp();
         if (postedAt > block.timestamp) revert StalePrice();
         age = block.timestamp - postedAt;
         if (age > maxPriceAge) revert StalePrice();
-    }
 
-    /// @dev Notional in quote token units: the quote leg when there is one, else the base input priced in quote
-    function _checkNotional(address fromToken, address toToken, uint256 fromAmount, uint256 out) internal view {
         address quote = wooPP.quoteToken();
-        uint256 notional =
-            fromToken == quote ? fromAmount : toToken == quote ? out : wooPP.tryQuery(fromToken, quote, fromAmount);
+        uint256 notional = fromToken == quote ? fromAmount : wooPP.tryQuery(fromToken, quote, fromAmount);
         if (notional > maxNotionalPerSwap) revert NotionalExceeded();
     }
 
