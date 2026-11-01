@@ -17,7 +17,8 @@ import {IWooPPV2, IWooracle} from "./interfaces/IWooPPV2.sol";
 ///      - token allowlist: the hook only registers pools of allowed tokens, and `query`/`swap` reject the rest
 ///      - price freshness: reverts when the Wooracle prices are older than `maxPriceAge` or posted in the future
 ///      - age spread: output = WooPP output * (1 - spreadPerSecond * age); the difference stays in the gateway
-///      - per-swap notional cap (in quote token units), tighter than WooPP's own `maxNotionalSwap`
+///      - per-swap notional cap (in quote token units), tighter than WooPP's own `maxNotionalSwap`. It bounds each
+///        swap, not a transaction or block: a route may split an order into several swaps, each priced after the last
 ///      Only the hook can swap. Swaps move exact amounts, so the gateway's balance is the retained spread, which
 ///      the owner withdraws.
 contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
@@ -35,7 +36,7 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     /// @notice Extra spread per second of price age, 18 decimals (1e18 = 100%) like the Wooracle spread
     uint256 public spreadPerSecond;
 
-    /// @notice Max notional per swap, in quote token units
+    /// @notice Max notional per swap (not per transaction or block), in quote token units
     uint256 public maxNotionalPerSwap;
 
     mapping(address token => bool) public isTokenAllowed;

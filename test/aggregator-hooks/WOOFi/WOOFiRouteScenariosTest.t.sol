@@ -85,10 +85,10 @@ contract WOOFiRouteScenariosTest is WOOFiTestBase {
 
     // ── Notional cap ───────────────────────────────────────────────────────────
 
-    /// @dev `maxNotionalPerSwap` caps each swap, not each transaction: two swaps on the same pool in one route trade
-    ///      1.5M USDC against a 1M cap, and fill at least as well as one uncapped 1.5M swap (WooPP re-prices after every
-    ///      swap, so splitting costs the swapper nothing and the cap bounds no per-transaction exposure).
-    function test_splitRoute_bypassesPerSwapCap_currentBehavior() public {
+    /// @dev `maxNotionalPerSwap` caps each swap, not each transaction (by design): two swaps on the same pool in one
+    ///      route trade 1.5M USDC against a 1M cap, and fill at least as well as one uncapped 1.5M swap, since WooPP
+    ///      re-prices after every swap.
+    function test_capIsPerSwap_splitRouteFillsBoth() public {
         uint256 total = 1_500_000e6;
 
         vm.expectRevert();

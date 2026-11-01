@@ -184,7 +184,7 @@ Uniswap Router → PoolManager → WOOFiAggregator (immutable) → WOOFiGateway 
 - **Price freshness**: `query`/`swap` revert when the Wooracle prices are older than `maxPriceAge`
 - **Age spread**: output = WooPP output × (1 − `spreadPerSecond` × age); the difference stays in the gateway for the owner to withdraw. `query` and `swap` use the same formula, so router simulation matches execution
 - **Token allowlist**: only allowed tokens can have pools, and `query`/`swap` reject the rest, so a token can be delisted later
-- **Per-swap notional cap** in quote token units, tighter than WooPP's `maxNotionalSwap`
+- **Per-swap notional cap** in quote token units, tighter than WooPP's `maxNotionalSwap`. It bounds each swap, not a transaction or block: a route can split an order into several swaps, and since WooPP re-prices after every swap, each part fills at the price the previous one left
 - **Pause**: pausers or the owner pause; only the owner unpauses. While the gateway or WooPP is paused, quotes revert, so routers stop sending flow
 - Only the hook can call `swap`. Pricing and the notional cap start at zero, so nothing trades until the owner configures them
 
