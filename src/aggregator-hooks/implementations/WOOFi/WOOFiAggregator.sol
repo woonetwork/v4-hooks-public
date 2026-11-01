@@ -44,6 +44,9 @@ contract WOOFiAggregator is BaseAggregatorHook {
     }
 
     /// @inheritdoc BaseAggregatorHook
+    /// @dev WooPP's whole reserve of each token, shared by every pool that has the token, so pools report overlapping
+    ///      liquidity. A single swap is further bounded by the gateway's per-swap notional cap and WooPP's own limits,
+    ///      so this overstates the depth any one swap can use; routers should size trades with `quote`.
     function pseudoTotalValueLocked(PoolId poolId) external view override returns (uint256 amount0, uint256 amount1) {
         PoolKey storage key = poolKeys[poolId];
         if (key.currency0.isAddressZero()) revert PoolDoesNotExist();
