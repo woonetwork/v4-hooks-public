@@ -48,6 +48,7 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     event Withdrawn(address token, address to, uint256 amount);
 
     error NotHook();
+    error HookAlreadySet();
     error NotPauser();
     error GatewayPaused();
     error TokenNotAllowed();
@@ -95,7 +96,10 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
 
     // ── Admin ─────────────────────────────────────────────────────────────────
 
+    /// @dev Set once: `swap` pays WooPP out of the gateway's balance (the retained spread), so only the immutable
+    ///      hook may ever call it
     function setHook(address _hook) external onlyOwner {
+        if (hook != address(0)) revert HookAlreadySet();
         hook = _hook;
         emit HookSet(_hook);
     }

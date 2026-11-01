@@ -229,6 +229,12 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
         gateway.swap(address(weth), address(usdc), 1e18, alice);
     }
 
+    function test_setHook_onlyOnce() public {
+        vm.expectRevert(WOOFiGateway.HookAlreadySet.selector);
+        gateway.setHook(alice);
+        assertEq(gateway.hook(), address(hook));
+    }
+
     function test_admin_onlyOwner() public {
         bytes memory err = abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice);
         vm.startPrank(alice);
