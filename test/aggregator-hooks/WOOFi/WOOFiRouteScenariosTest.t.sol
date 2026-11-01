@@ -10,7 +10,8 @@ import {MultiSwapRouter} from "./mocks/MultiSwapRouter.sol";
 
 /// @notice Route shapes and keeper behavior the single-swap tests do not reach: several WOOFi swaps in one
 ///         transaction (multi-hop and split routes), keeper posts that cover only some tokens, and WooPP checks that
-///         `query` skips. Tests named `*_currentBehavior` pin down what the gateway does today, so a fix flips them.
+///         `query` skips. Tests named `*_currentBehavior` pin down what the gateway does today, so a fix flips them;
+///         the others pin down intended behavior.
 contract WOOFiRouteScenariosTest is WOOFiTestBase {
     uint256 constant MAX_PRICE_AGE = 6;
     uint256 constant SPREAD_PER_SECOND = 1e14; // 1 bp per second
@@ -132,9 +133,10 @@ contract WOOFiRouteScenariosTest is WOOFiTestBase {
 
     // ── Quote / swap parity ────────────────────────────────────────────────────
 
-    /// @dev WooPP's `swap` rejects `tx.gasprice > maxGasPrice` but its `query` does not check it, so the gateway's quote
-    ///      succeeds for a swap that reverts. (Live WooPP sets maxGasPrice to 1e18 on Base and Arbitrum today.)
-    function test_gasPriceAboveWooPPMax_quotesButSwapReverts_currentBehavior() public {
+    /// @dev WooPP's `swap` rejects `tx.gasprice > maxGasPrice` but its `query` does not check it, and the gateway does
+    ///      not mirror it (by design: a quote is simulated off-chain), so the quote succeeds for a swap that reverts.
+    ///      (Live WooPP sets maxGasPrice to 1e18 on Base and Arbitrum today.)
+    function test_gasPriceAboveWooPPMax_quotesButSwapReverts() public {
         wooPP.setMaxGasPrice(1 gwei);
         vm.txGasPrice(2 gwei);
 

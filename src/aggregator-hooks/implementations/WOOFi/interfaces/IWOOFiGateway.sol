@@ -10,7 +10,7 @@ interface IWOOFiGateway {
     /// @notice WooPP's reserve of `token`
     function poolSize(address token) external view returns (uint256);
 
-    /// @notice Output for swapping `fromAmount` of `fromToken` to `toToken`; reverts where `swap` would
+    /// @notice Output for swapping `fromAmount` of `fromToken` to `toToken`; reverts where the gateway's checks would fail the swap
     function query(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount);
 
     /// @notice Swaps `fromAmount` of `fromToken`, already transferred to the gateway, and sends the output to `to`
