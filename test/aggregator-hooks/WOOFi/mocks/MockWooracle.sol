@@ -16,6 +16,7 @@ contract MockWooracle {
     address public quoteToken;
     address public wooPP;
     uint256 public timestamp;
+    uint256 public staleDuration = 300;
     bool public paused;
 
     mapping(address => State) internal _states;

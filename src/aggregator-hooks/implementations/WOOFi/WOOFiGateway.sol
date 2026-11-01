@@ -15,7 +15,7 @@ import {IWooPPV2, IWooracle} from "./interfaces/IWooPPV2.sol";
 ///      execution in the same state:
 ///      - pause: by any pauser or the owner; only the owner unpauses. A paused WooPP is rejected too
 ///      - token allowlist: the hook only registers pools of allowed tokens, and `query`/`swap` reject the rest
-///      - price freshness: reverts when the Wooracle prices are older than `maxPriceAge`
+///      - price freshness: reverts when the Wooracle prices are older than `maxPriceAge` or posted in the future
 ///      - age spread: output = WooPP output * (1 - spreadPerSecond * age); the difference stays in the gateway
 ///      - per-swap notional cap (in quote token units), tighter than WooPP's own `maxNotionalSwap`
 ///      Only the hook can swap. Swaps move exact amounts, so the gateway's balance is the retained spread, which
@@ -52,6 +52,7 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     error StalePrice();
     error NotionalExceeded();
     error SpreadTooHigh();
+    error MaxPriceAgeTooLong();
 
     modifier onlyPauser() {
         if (!isPauser[msg.sender] && msg.sender != owner()) revert NotPauser();
@@ -118,9 +119,11 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
         isTokenAllowed[token] = allowed;
     }
 
-    /// @dev The spread at the oldest allowed price must stay below 100%
+    /// @dev The spread at the oldest allowed price must stay below 100%, and the max age within the Wooracle's own
+    ///      `staleDuration`, past which WooPP stops pricing with these prices
     function setPricing(uint256 _maxPriceAge, uint256 _spreadPerSecond) external onlyOwner {
         if (_spreadPerSecond * _maxPriceAge >= 1e18) revert SpreadTooHigh();
+        if (_maxPriceAge > IWooracle(wooPP.wooracle()).staleDuration()) revert MaxPriceAgeTooLong();
         maxPriceAge = _maxPriceAge;
         spreadPerSecond = _spreadPerSecond;
     }
@@ -142,7 +145,8 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
         if (paused() || wooPP.paused()) revert GatewayPaused();
         if (!isTokenAllowed[fromToken] || !isTokenAllowed[toToken]) revert TokenNotAllowed();
         uint256 postedAt = IWooracle(wooPP.wooracle()).timestamp();
-        age = block.timestamp > postedAt ? block.timestamp - postedAt : 0;
+        if (postedAt > block.timestamp) revert StalePrice();
+        age = block.timestamp - postedAt;
         if (age > maxPriceAge) revert StalePrice();
     }
 

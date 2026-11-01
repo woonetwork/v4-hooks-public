@@ -39,4 +39,7 @@ interface IWooPPV2 {
 interface IWooracle {
     /// @notice When the keeper last posted prices (shared by every base token)
     function timestamp() external view returns (uint256);
+
+    /// @notice Age after which Wooracle stops treating its own prices as feasible
+    function staleDuration() external view returns (uint256);
 }

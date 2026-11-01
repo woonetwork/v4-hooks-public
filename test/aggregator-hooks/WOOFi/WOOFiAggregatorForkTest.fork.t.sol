@@ -17,7 +17,7 @@ import {SafePoolSwapTest} from "../shared/SafePoolSwapTest.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
 import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
 import {IWOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWOOFiGateway.sol";
-import {IWooPPV2} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
+import {IWooPPV2, IWooracle} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 
 /// @notice Shared Arbitrum (42161) fork setup: WOOFiAggregator → permissive WOOFiGateway → live WooPPV2.
 /// @dev `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161` (0 = latest). Skips when the RPC is unset.
@@ -66,7 +66,7 @@ abstract contract WOOFiForkBase is Test {
         swapRouter = new SafePoolSwapTest(manager);
 
         gateway = new WOOFiGateway(wooPP, address(this));
-        gateway.setPricing(1 days, 0);
+        gateway.setPricing(IWooracle(wooPP.wooracle()).staleDuration(), 0);
         gateway.setMaxNotionalPerSwap(type(uint256).max);
         gateway.setTokenAllowed(USDC, true);
         gateway.setTokenAllowed(USDT, true);

@@ -97,7 +97,7 @@ abstract contract WOOFiTestBase is Test {
         _deposit(wbtc, WBTC_RESERVE);
 
         gateway = new WOOFiGateway(wooPP, address(this));
-        gateway.setPricing(1 days, 0);
+        gateway.setPricing(wooracle.staleDuration(), 0);
         gateway.setMaxNotionalPerSwap(type(uint256).max);
         gateway.setTokenAllowed(address(usdc), true);
         gateway.setTokenAllowed(address(weth), true);

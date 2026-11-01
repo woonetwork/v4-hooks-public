@@ -92,10 +92,10 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
         _assertSpreadSwap(weth, wbtc, 10e18, MAX_PRICE_AGE);
     }
 
-    function test_futurePriceTimestamp_treatedAsFresh() public {
-        wooracle.setTimestamp(block.timestamp + 10);
-        uint256 raw = wooPP.query(address(weth), address(usdc), 1e18);
-        assertEq(gateway.query(address(weth), address(usdc), 1e18), raw);
+    function test_futurePriceTimestamp_reverts() public {
+        wooracle.setTimestamp(block.timestamp + 1);
+        vm.expectRevert(WOOFiGateway.StalePrice.selector);
+        gateway.query(address(weth), address(usdc), 1e18);
     }
 
     // ── Price freshness ────────────────────────────────────────────────────────
@@ -240,6 +240,11 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
         assertEq(gateway.spreadPerSecond(), 2e14);
         vm.expectRevert(WOOFiGateway.SpreadTooHigh.selector);
         gateway.setPricing(10, 1e17);
+
+        // Up to the Wooracle's own staleDuration (300s in the mock), not beyond
+        gateway.setPricing(300, 0);
+        vm.expectRevert(WOOFiGateway.MaxPriceAgeTooLong.selector);
+        gateway.setPricing(301, 0);
     }
 
     function test_withdraw_retainedSpread() public {
