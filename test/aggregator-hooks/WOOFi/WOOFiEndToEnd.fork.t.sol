@@ -124,7 +124,7 @@ contract WOOFiEndToEndForkTest is Test {
             vm.toString(CREATE2_DEPLOYER),
             " --init-code-hash ",
             vm.toString(initCodeHash),
-            " | awk '/^Salt:/{print $2}'"
+            " 2>&1 | grep -oE '0x[0-9a-fA-F]{64}' | tail -1"
         );
         return bytes32(vm.ffi(cmd));
     }
