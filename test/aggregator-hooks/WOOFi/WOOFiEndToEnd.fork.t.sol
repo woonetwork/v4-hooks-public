@@ -13,6 +13,7 @@ import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOO
 import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
 import {IWooracle} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
 import {DeployWOOFiBaseScript} from "../../../script/deploy/woofi/DeployWOOFiBase.s.sol";
+import {WOOFiForkUtils} from "./WOOFiForkUtils.sol";
 
 interface IUniversalRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
@@ -48,7 +49,7 @@ interface IV4Quoter {
 ///         the 0x77 ID), accept ownership as the Safe, then trade the way users do: Permit2 + Universal Router
 ///         (V4_SWAP), quoted through Uniswap's V4Quoter.
 /// @dev `FORK_RPC_URL_8453` and optional `FORK_BLOCK_NUMBER_8453`; skips when the RPC is unset. Needs `cast` (ffi).
-contract WOOFiEndToEndForkTest is Test {
+contract WOOFiEndToEndForkTest is WOOFiForkUtils {
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
 
@@ -112,6 +113,12 @@ contract WOOFiEndToEndForkTest is Test {
             PERMIT2.approve(tokens[i], address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
             vm.stopPrank();
         }
+
+        // Trade at a known price age regardless of when the keeper last posted at the fork block
+        address[] memory bases = new address[](2);
+        bases[0] = WETH;
+        bases[1] = CBBTC;
+        _setWooracleAge(gateway.wooPP().wooracle(), bases, 10);
     }
 
     /// @dev Mines a salt with the 0x77 ID byte and the hook's permission bits (0x2888), as done before deployment
@@ -138,11 +145,6 @@ contract WOOFiEndToEndForkTest is Test {
             tickSpacing: 1,
             hooks: IHooks(address(hook))
         });
-    }
-
-    function _skipIfKeeperLate() internal {
-        uint256 postedAt = IWooracle(gateway.wooPP().wooracle()).timestamp();
-        if (block.timestamp > postedAt + MAX_PRICE_AGE) vm.skip(true);
     }
 
     function _quoterQuote(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256 amountOut) {
@@ -184,7 +186,6 @@ contract WOOFiEndToEndForkTest is Test {
 
     /// @dev V4Quoter == hook.quote == what the user receives; the user pays exactly amountIn
     function _assertEndToEnd(address tokenIn, address tokenOut, uint256 amountIn) internal {
-        _skipIfKeeperLate();
         uint256 quoterOut = _quoterQuote(tokenIn, tokenOut, amountIn);
         uint256 hookQuote = hook.quote(tokenIn < tokenOut, -int256(amountIn), _key(tokenIn, tokenOut).toId());
         assertEq(quoterOut, hookQuote, "V4Quoter matches hook.quote");
@@ -264,14 +265,12 @@ contract WOOFiEndToEndForkTest is Test {
     }
 
     function test_e2e_slippageProtection_reverts() public {
-        _skipIfKeeperLate();
         uint256 quoted = _quoterQuote(WETH, USDC, 1e18);
         vm.expectRevert();
         _routerSwap(WETH, USDC, 1e18, quoted + 1);
     }
 
     function test_e2e_pausedGateway_quoterAndRouterRevert() public {
-        _skipIfKeeperLate();
         vm.prank(pauser);
         gateway.pause();
         vm.expectRevert();

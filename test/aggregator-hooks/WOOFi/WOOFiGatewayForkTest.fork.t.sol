@@ -18,13 +18,13 @@ import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOO
 import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
 import {IWOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWOOFiGateway.sol";
 import {IWooPPV2, IWooracle} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
+import {WOOFiForkUtils} from "./WOOFiForkUtils.sol";
 
 /// @notice Base (8453) fork tests: WOOFiAggregator → WOOFiGateway → live WooPPV2, for the launch set ETH, cbBTC, USDC.
 /// @dev `FORK_RPC_URL_8453` and optional `FORK_BLOCK_NUMBER_8453` (0 = latest). Skips when the RPC is unset.
-///      `POOL_MANAGER_8453` / `WOOPP_8453` default to the live deployments. The keeper posts Wooracle prices every
-///      tens of seconds on Base, so the tests use a lenient `maxPriceAge` and derive the expected spread from the
-///      age at the fork block.
-contract WOOFiGatewayForkTest is Test {
+///      `POOL_MANAGER_8453` / `WOOPP_8453` default to the live deployments. The live prices are re-posted and aged
+///      `PRICE_AGE` seconds, so the age spread is exercised at a known age whenever the keeper last posted.
+contract WOOFiGatewayForkTest is WOOFiForkUtils {
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
 
@@ -43,6 +43,7 @@ contract WOOFiGatewayForkTest is Test {
 
     uint256 constant MAX_PRICE_AGE = 120;
     uint256 constant SPREAD_PER_SECOND = 1e13; // 0.1 bp per second
+    uint256 constant PRICE_AGE = 30;
     uint256 constant MAX_NOTIONAL_PER_SWAP = 50_000e6;
 
     IPoolManager public manager;
@@ -96,6 +97,11 @@ contract WOOFiGatewayForkTest is Test {
             vm.prank(alice);
             IERC20(tokens[i]).forceApprove(address(swapRouter), type(uint256).max);
         }
+
+        address[] memory bases = new address[](2);
+        bases[0] = WETH;
+        bases[1] = CBBTC;
+        _setWooracleAge(wooPP.wooracle(), bases, PRICE_AGE);
     }
 
     function _key(address a, address b) internal view returns (PoolKey memory) {
@@ -131,7 +137,7 @@ contract WOOFiGatewayForkTest is Test {
 
     function _assertSpreadSwap(address tokenIn, address tokenOut, uint256 amountIn) internal {
         uint256 age = _priceAge();
-        if (age > MAX_PRICE_AGE) vm.skip(true); // the keeper was unusually late at this block
+        assertEq(age, PRICE_AGE, "known price age");
         uint256 raw = wooPP.query(tokenIn, tokenOut, amountIn);
         uint256 expected = raw * (1e18 - SPREAD_PER_SECOND * age) / 1e18;
 

@@ -18,12 +18,13 @@ import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOO
 import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
 import {IWOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWOOFiGateway.sol";
 import {IWooPPV2, IWooracle} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
+import {WOOFiForkUtils} from "./WOOFiForkUtils.sol";
 
 /// @notice Shared Arbitrum (42161) fork setup: WOOFiAggregator → permissive WOOFiGateway → live WooPPV2.
 /// @dev `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161` (0 = latest). Skips when the RPC is unset.
 ///      `POOL_MANAGER_42161` / `WOOPP_42161` default to the live deployments. The fork must not be warped:
 ///      Wooracle prices go stale after `staleDuration` (300s by default) and every quote/swap then reverts.
-abstract contract WOOFiForkBase is Test {
+abstract contract WOOFiForkBase is WOOFiForkUtils {
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
 
@@ -94,6 +95,13 @@ abstract contract WOOFiForkBase is Test {
             vm.prank(alice);
             IERC20(tokens[i]).forceApprove(address(swapRouter), type(uint256).max);
         }
+
+        // Fresh prices regardless of when the keeper last posted at the fork block
+        address[] memory bases = new address[](3);
+        bases[0] = WETH;
+        bases[1] = WBTC;
+        bases[2] = USDT;
+        _setWooracleAge(wooPP.wooracle(), bases, 0);
     }
 
     function _key(address a, address b) internal view returns (PoolKey memory) {
