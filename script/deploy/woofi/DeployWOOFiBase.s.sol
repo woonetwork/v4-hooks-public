@@ -135,8 +135,11 @@ contract DeployWOOFiBaseScript is Script {
         return abi.encodePacked(type(WOOFiAggregator).creationCode, abi.encode(POOL_MANAGER, IWOOFiGateway(gateway)));
     }
 
+    /// @dev Reuses the address when the contract is already there (an interrupted run, or someone deploying the same
+    ///      init code first: the result is identical, as the owner and constructor args are part of the address)
     function _create2(bytes32 salt, bytes memory initCode) internal returns (address deployed) {
         deployed = _create2Address(salt, keccak256(initCode));
+        if (deployed.code.length > 0) return deployed;
         (bool ok,) = CREATE2_DEPLOYER.call(abi.encodePacked(salt, initCode));
         require(ok && deployed.code.length > 0, "CREATE2 deployment failed");
     }

@@ -220,6 +220,31 @@ contract WOOFiEndToEndForkTest is Test {
         }
     }
 
+    /// @dev Anyone can deploy the gateway's init code through the public CREATE2 deployer first; the script reuses
+    ///      that (identical, deployer-owned) contract instead of failing
+    function test_e2e_deployAfterGatewayFrontRun() public {
+        address otherDeployer = makeAddr("woofi_other_deployer");
+        address predicted = script.gatewayAddress(otherDeployer);
+        (bool ok,) = CREATE2_DEPLOYER.call(
+            abi.encodePacked(
+                keccak256("WOOFiGateway"), type(WOOFiGateway).creationCode, abi.encode(gateway.wooPP(), otherDeployer)
+            )
+        );
+        assertTrue(ok && predicted.code.length > 0, "front-run deployment");
+
+        DeployWOOFiBaseScript.Config memory config = DeployWOOFiBaseScript.Config({
+            hookSalt: _mineHookSalt(script.hookInitCodeHash(otherDeployer)),
+            maxPriceAge: MAX_PRICE_AGE,
+            spreadPerSecond: SPREAD_PER_SECOND,
+            maxNotionalPerSwap: MAX_NOTIONAL_PER_SWAP,
+            pausers: new address[](0)
+        });
+        (WOOFiGateway reused, WOOFiAggregator otherHook) = script.deploy(config, otherDeployer);
+        assertEq(address(reused), predicted, "reused the front-run gateway");
+        assertEq(reused.hook(), address(otherHook));
+        assertEq(reused.pendingOwner(), WOOFI_SAFE);
+    }
+
     // ── Trading through the Universal Router ───────────────────────────────────
 
     function test_e2e_wethToUsdc() public {
