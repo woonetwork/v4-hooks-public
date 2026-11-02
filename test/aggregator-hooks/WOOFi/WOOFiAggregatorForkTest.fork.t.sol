@@ -22,8 +22,9 @@ import {WOOFiForkUtils} from "./WOOFiForkUtils.sol";
 
 /// @notice Shared Arbitrum (42161) fork setup: WOOFiAggregator → permissive WOOFiGateway → live WooPPV2.
 /// @dev `FORK_RPC_URL_42161` and optional `FORK_BLOCK_NUMBER_42161` (0 = latest). Skips when the RPC is unset.
-///      `POOL_MANAGER_42161` / `WOOPP_42161` default to the live deployments. The fork must not be warped:
-///      Wooracle prices go stale after `staleDuration` (300s by default) and every quote/swap then reverts.
+///      `POOL_MANAGER_42161` / `WOOPP_42161` default to the live deployments. Setup re-posts the live Wooracle
+///      prices (see `WOOFiForkUtils`), so tests do not depend on when the keeper last posted; a warp must stay
+///      within the Wooracle's `staleDuration` (120s live) or every quote and swap reverts.
 abstract contract WOOFiForkBase is WOOFiForkUtils {
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
