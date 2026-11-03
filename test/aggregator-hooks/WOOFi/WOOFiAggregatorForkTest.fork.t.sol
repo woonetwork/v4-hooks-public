@@ -164,7 +164,12 @@ contract WOOFiAggregatorForkTest is WOOFiForkBase {
     }
 
     function test_fork_baseToBase_wethToWbtc() public {
-        _assertQuoteMatchesSwap(WETH, WBTC, 0.5e18);
+        // Size by the live WBTC reserve, which trading can drain below a fixed amount's output
+        uint256 amountIn = 0.5e18;
+        uint256 out = wooPP.tryQuery(WETH, WBTC, amountIn);
+        uint256 maxOut = wooPP.poolSize(WBTC) / 2;
+        if (out > maxOut) amountIn = amountIn * maxOut / out;
+        _assertQuoteMatchesSwap(WETH, WBTC, amountIn);
     }
 
     function test_fork_baseToBase_wbtcToWeth() public {

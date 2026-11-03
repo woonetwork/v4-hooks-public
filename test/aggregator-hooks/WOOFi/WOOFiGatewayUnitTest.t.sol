@@ -36,7 +36,7 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
     {
         _setPriceAge(age);
         uint256 raw = wooPP.query(address(tokenIn), address(tokenOut), amountIn);
-        uint256 expected = raw * (1e18 - SPREAD_PER_SECOND * age) / 1e18;
+        uint256 expected = raw * (1e18 - gateway.spreadPerSecond() * age) / 1e18;
 
         quoted = _quote(tokenIn, tokenOut, amountIn);
         assertEq(quoted, expected, "quote = WooPP output less age spread");
@@ -293,6 +293,23 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
     }
 
     // ── Fuzz ───────────────────────────────────────────────────────────────────
+
+    function test_swap_atMaxSpread() public {
+        // The ceiling is reachable: at the oldest allowed price the gateway keeps exactly MAX_SPREAD (10%)
+        gateway.setPricing(5, 2e16);
+        uint256 raw = wooPP.query(address(weth), address(usdc), 10e18);
+        uint256 quoted = _assertSpreadSwap(weth, usdc, 10e18, 5);
+        assertEq(quoted, raw * 9 / 10);
+    }
+
+    function testFuzz_pricingWithinMaxSpread(uint256 maxAge, uint256 spreadPerSecond, uint256 age, uint256 amountIn)
+        public
+    {
+        maxAge = bound(maxAge, 1, wooracle.staleDuration());
+        spreadPerSecond = bound(spreadPerSecond, 0, gateway.MAX_SPREAD() / maxAge);
+        gateway.setPricing(maxAge, spreadPerSecond);
+        _assertSpreadSwap(weth, usdc, bound(amountIn, 1e12, 300e18), bound(age, 0, maxAge));
+    }
 
     function testFuzz_quoteMatchesSwap(uint256 amountIn, uint256 age, uint8 direction) public {
         age = bound(age, 0, MAX_PRICE_AGE);
