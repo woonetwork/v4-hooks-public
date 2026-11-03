@@ -25,6 +25,9 @@ import {IWooPPV2, IWooracle} from "./interfaces/IWooPPV2.sol";
 contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
+    /// @notice Ceiling on the age spread, reached at the oldest allowed price: 1%, in 18 decimals
+    uint256 public constant MAX_SPREAD = 1e16;
+
     /// @notice The WooPPV2 pool
     IWooPPV2 public immutable wooPP;
 
@@ -125,10 +128,10 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
         emit TokenAllowedSet(token, allowed);
     }
 
-    /// @dev The spread at the oldest allowed price must stay below 100%, and the max age within the Wooracle's own
-    ///      `staleDuration`, past which WooPP stops pricing with these prices
+    /// @dev The spread at the oldest allowed price may not exceed `MAX_SPREAD`, and the max age must stay within the
+    ///      Wooracle's own `staleDuration`, past which WooPP stops pricing with these prices
     function setPricing(uint256 _maxPriceAge, uint256 _spreadPerSecond) external onlyOwner {
-        if (_spreadPerSecond * _maxPriceAge >= 1e18) revert SpreadTooHigh();
+        if (_spreadPerSecond * _maxPriceAge > MAX_SPREAD) revert SpreadTooHigh();
         if (_maxPriceAge > IWooracle(wooPP.wooracle()).staleDuration()) revert MaxPriceAgeTooLong();
         maxPriceAge = _maxPriceAge;
         spreadPerSecond = _spreadPerSecond;
