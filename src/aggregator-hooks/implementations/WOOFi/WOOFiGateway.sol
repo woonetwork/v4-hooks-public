@@ -11,9 +11,9 @@ import {IWooPPV2, IWooracle} from "./interfaces/IWooPPV2.sol";
 /// @title WOOFiGateway
 /// @notice WOOFi-owned wrapper around WooPPV2 that WOOFiAggregator uses in place of the pool, so the hook stays
 ///         immutable and ownerless while WOOFi keeps adjustable risk controls over Uniswap-routed flow
-/// @dev `query` and `swap` share the gateway's checks and output formula, so a router's simulation matches
-///      execution in the same state. WooPP's own swap-time checks on `tx.gasprice` and its blacklist are not
-///      mirrored: a quote is simulated off-chain, where neither reflects the real transaction. The checks:
+/// @dev `query` and `swap` share the gateway's checks and output formula, and `query` also applies the swap-time
+///      checks WooPP's own `query` skips (gas price cap, blacklist), so a quote reverts wherever the swap would and
+///      a router's simulation matches execution in the same state. The gateway's checks:
 ///      - pause: by any pauser or the owner; only the owner unpauses. A paused WooPP is rejected too
 ///      - token allowlist: the hook only registers pools of allowed tokens, and `query`/`swap` reject the rest
 ///      - price freshness: reverts when the Wooracle prices are older than `maxPriceAge` or posted in the future
@@ -61,6 +61,8 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     error StalePrice();
     error NotionalExceeded();
     error SpreadTooHigh();
+    error GasPriceTooHigh();
+    error Blacklisted();
     error MaxPriceAgeTooLong();
 
     modifier onlyPauser() {
@@ -81,8 +83,12 @@ contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     }
 
     /// @inheritdoc IWOOFiGateway
+    /// @dev Also checks what WooPP's `swap` enforces but its `query` skips. `swap` needs no copy, as WooPP itself
+    ///      rejects there; WooPP sees the gateway as its caller.
     function query(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount) {
         uint256 age = _checkSwappable(fromToken, toToken, fromAmount);
+        if (tx.gasprice > wooPP.maxGasPrice()) revert GasPriceTooHigh();
+        if (wooPP.blacklist(tx.origin) || wooPP.blacklist(address(this))) revert Blacklisted();
         toAmount = _applySpread(wooPP.query(fromToken, toToken, fromAmount), age);
     }
 

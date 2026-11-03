@@ -177,7 +177,7 @@ Uniswap Router → PoolManager → WOOFiAggregator (immutable) → WOOFiGateway 
 - **One pool per pair**: pools must use `fee = 0` and `tickSpacing = 1` (both unused, as the hook fills the whole swap), so each pair has exactly one PoolKey
 - **Pair registration**: both tokens must be allowed by the gateway, which also rules out native currency (`TokensNotSupported`); use WETH
 - **Push model, no approvals**: input goes from the PoolManager straight to the gateway, which sends the output straight to the PoolManager
-- **Quotes**: `WOOFiGateway.query`, which applies the same checks and pricing as the swap (WooPP's gas price cap and blacklist are not mirrored; see the gateway)
+- **Quotes**: `WOOFiGateway.query`, which applies the same checks and pricing as the swap, including WooPP's swap-time gas price cap and blacklist that WooPP's own `query` skips, so a quote reverts wherever the swap would
 
 #### Gateway
 

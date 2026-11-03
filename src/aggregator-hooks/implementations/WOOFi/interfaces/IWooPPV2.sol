@@ -17,6 +17,12 @@ interface IWooPPV2 {
 
     function paused() external view returns (bool);
 
+    /// @notice `swap` reverts when `tx.gasprice` exceeds this
+    function maxGasPrice() external view returns (uint256);
+
+    /// @notice `swap` reverts when `tx.origin` or the caller is blacklisted
+    function blacklist(address user) external view returns (bool);
+
     /// @notice Quotes `fromAmount` of `fromToken` to `toToken`, checking cap and reserve
     function query(address fromToken, address toToken, uint256 fromAmount) external view returns (uint256 toAmount);
 

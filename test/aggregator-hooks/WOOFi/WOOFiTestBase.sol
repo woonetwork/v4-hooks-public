@@ -29,6 +29,7 @@ interface IWooPPV2Admin is IWooPPV2 {
     function setFeeRate(address token, uint16 rate) external;
     function setMaxGasPrice(uint256 maxGasPrice) external;
     function setFeeRateMultiplier(address user, uint256 feeRateMultiplier) external;
+    function setBlacklist(address user, bool flag) external;
     function deposit(address token, uint256 amount) external;
     function withdraw(address token, uint256 amount) external;
     function pause() external;

@@ -133,14 +133,31 @@ contract WOOFiRouteScenariosTest is WOOFiTestBase {
 
     // ── Quote / swap parity ────────────────────────────────────────────────────
 
-    /// @dev WooPP's `swap` rejects `tx.gasprice > maxGasPrice` but its `query` does not check it, and the gateway does
-    ///      not mirror it (by design: a quote is simulated off-chain), so the quote succeeds for a swap that reverts.
-    ///      (Live WooPP sets maxGasPrice to 1e18 on Base and Arbitrum today.)
-    function test_gasPriceAboveWooPPMax_quotesButSwapReverts() public {
+    /// @dev WooPP's `swap` rejects `tx.gasprice > maxGasPrice` but its `query` does not check it; the gateway's `query`
+    ///      mirrors the check, so the quote reverts like the swap. (Live WooPP sets maxGasPrice to 1e18 today.)
+    function test_gasPriceAboveWooPPMax_quoteAndSwapRevert() public {
         wooPP.setMaxGasPrice(1 gwei);
         vm.txGasPrice(2 gwei);
 
-        assertGt(_quote(weth, usdc, 1e18), 0, "quote succeeds");
+        vm.expectRevert(WOOFiGateway.GasPriceTooHigh.selector);
+        _quote(weth, usdc, 1e18);
+        vm.expectRevert();
+        _swap(weth, usdc, -1e18);
+    }
+
+    /// @dev Same for WooPP's blacklist, which `swap` checks on `tx.origin` and on its caller (the gateway)
+    function test_blacklisted_quoteAndSwapRevert() public {
+        wooPP.setBlacklist(alice, true);
+        vm.prank(alice, alice);
+        vm.expectRevert(WOOFiGateway.Blacklisted.selector);
+        gateway.query(address(weth), address(usdc), 1e18);
+        vm.expectRevert();
+        _swap(weth, usdc, -1e18);
+
+        wooPP.setBlacklist(alice, false);
+        wooPP.setBlacklist(address(gateway), true);
+        vm.expectRevert(WOOFiGateway.Blacklisted.selector);
+        _quote(weth, usdc, 1e18);
         vm.expectRevert();
         _swap(weth, usdc, -1e18);
     }
