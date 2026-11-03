@@ -25,8 +25,8 @@ import {IWooPPV2, IWooracle} from "./interfaces/IWooPPV2.sol";
 contract WOOFiGateway is IWOOFiGateway, Ownable2Step, Pausable {
     using SafeERC20 for IERC20;
 
-    /// @notice Ceiling on the age spread, reached at the oldest allowed price: 1%, in 18 decimals
-    uint256 public constant MAX_SPREAD = 1e16;
+    /// @notice Ceiling on the age spread, reached at the oldest allowed price: 10%, in 18 decimals
+    uint256 public constant MAX_SPREAD = 1e17;
 
     /// @notice The WooPPV2 pool
     IWooPPV2 public immutable wooPP;

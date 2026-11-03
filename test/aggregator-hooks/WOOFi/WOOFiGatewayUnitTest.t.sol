@@ -271,11 +271,11 @@ contract WOOFiGatewayUnitTest is WOOFiTestBase {
         gateway.setPricing(10, 2e14);
         assertEq(gateway.maxPriceAge(), 10);
         assertEq(gateway.spreadPerSecond(), 2e14);
-        // The spread at max age is capped at MAX_SPREAD (1%)
-        assertEq(gateway.MAX_SPREAD(), 1e16);
-        gateway.setPricing(100, 1e14);
+        // The spread at max age is capped at MAX_SPREAD (10%)
+        assertEq(gateway.MAX_SPREAD(), 1e17);
+        gateway.setPricing(100, 1e15);
         vm.expectRevert(WOOFiGateway.SpreadTooHigh.selector);
-        gateway.setPricing(100, 1e14 + 1);
+        gateway.setPricing(100, 1e15 + 1);
 
         // Up to the Wooracle's own staleDuration (300s in the mock), not beyond
         gateway.setPricing(300, 0);
