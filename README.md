@@ -125,6 +125,27 @@ Pools initialized on the Ethereum hook. Every pool uses the dynamic-fee flag (`0
 | -------- | ------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------ | ---------- |
 | ETH/USDC | ETH `0x0000000000000000000000000000000000000000` | USDC `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | 0x98316e8405502774a5d0a0761276b5d26505a8195c1905169864008d5e7a3eea | 2026-10-13 |
 
+### WOOFiAggregator
+
+The hook calls WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`) through a WOOFi-owned WOOFiGateway.
+The gateway was deployed closed (max price age, spread and per-swap notional cap all 0), so every quote and swap
+reverts until its owner sets pricing and the cap. Ownership is pending to the WOOFi 3/6 Safe
+`0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must call `acceptOwnership`.
+
+| Network | Hook                                       | Gateway                                    | Commit Hash | Date       |
+| ------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
+| Base    | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
+
+#### Pools
+
+Every pool uses fee 0 and `tickSpacing` 1.
+
+| Pool       | Currency0                                         | Currency1                                          | Pool ID                                                            |
+| ---------- | ------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------ |
+| WETH/USDC  | WETH `0x4200000000000000000000000000000000000006` | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`  | 0xe73820f374359d2e767612877d21d5e41bf1f198453379b8458a57f869cb6f2b |
+| USDC/cbBTC | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | cbBTC `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | 0xd1370c843c9f6e4a6c252151d2571dacc0adaa99bbb24742df8b0178c0126122 |
+| WETH/cbBTC | WETH `0x4200000000000000000000000000000000000006` | cbBTC `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | 0x4e44800646ea42d88f50899515c39743af0f1472c3c6b532182cc80be9090323 |
+
 ## Audits
 
 | Name             | Date       | Report                                                     |
