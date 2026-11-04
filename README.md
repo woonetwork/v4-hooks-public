@@ -128,8 +128,9 @@ Pools initialized on the Ethereum hook. Every pool uses the dynamic-fee flag (`0
 ### WOOFiAggregator
 
 The hook calls WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`) through a WOOFi-owned WOOFiGateway.
-The gateway was deployed closed (max price age, spread and per-swap notional cap all 0), so every quote and swap
-reverts until its owner sets pricing and the cap. Ownership is pending to the WOOFi 3/6 Safe
+The gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on 2026-11-04
+with a 90s max price age, no age spread and a 10,000 USDC per-swap cap; the deployer
+`0xc031C368b51c28266396273b0C6ce2489b00969d` is a pauser. Ownership is pending to the WOOFi 3/6 Safe
 `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must call `acceptOwnership`.
 
 | Network | Hook                                       | Gateway                                    | Commit Hash | Date       |
