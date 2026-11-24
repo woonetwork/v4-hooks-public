@@ -136,15 +136,16 @@ price age, no age spread and a 10,000 USDC per-swap cap, and the deployer
 - **Base**: the gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on
   2026-11-04. Ownership is pending to the WOOFi 3/6 Safe `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must
   call `acceptOwnership`.
-- **Arbitrum, Optimism, Polygon**: deployed open on 2026-11-24. The deployer stays owner until ownership moves to the
-  WOOFi Safe on every chain at once.
+- **Arbitrum, Optimism, Polygon, Avalanche**: deployed open on 2026-11-24. The deployer stays owner until ownership
+  moves to the WOOFi Safe on every chain at once.
 
-| Network  | Hook                                       | Gateway                                    | Commit Hash | Date       |
-| -------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
-| Base     | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
-| Arbitrum | 0x772d41Ff3325b5457be90cD79f0dD5C56Be12888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 7e9d478     | 2026-11-24 |
-| Optimism | 0x77181D2d7B3b116Bb4bdF8c897416A28b9412888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 45b4138     | 2026-11-24 |
-| Polygon  | 0x77D1BdAaa32572D5Ea301dabE6AEe8C03e162888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 4954c12     | 2026-11-24 |
+| Network   | Hook                                       | Gateway                                    | Commit Hash | Date       |
+| --------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
+| Base      | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
+| Arbitrum  | 0x772d41Ff3325b5457be90cD79f0dD5C56Be12888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 7e9d478     | 2026-11-24 |
+| Optimism  | 0x77181D2d7B3b116Bb4bdF8c897416A28b9412888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 45b4138     | 2026-11-24 |
+| Polygon   | 0x77D1BdAaa32572D5Ea301dabE6AEe8C03e162888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 4954c12     | 2026-11-24 |
+| Avalanche | 0x77Ce1Bcb2bCCA5fB6677fcd9DeB68A7B64C72888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | dfa59fd     | 2026-11-24 |
 
 #### Pools
 
@@ -202,6 +203,21 @@ Every pool uses fee 0 and `tickSpacing` 1.
 | WETH/USDT   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0xf5b6a154596b85ee8c2645cd6ce4ba18480cab32f28cd24c84582d64c40f52c9 |
 | WBTC/USDT   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0x5c0f9249447542cf2e168b24eb78b2b20298f3a9cc2f6fe7866b592b1ddef5d8 |
 | WBTC/WETH   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0x3f9c4ce080e92b15eccf1436dfa55cb3c8bd7ae14c7ff2d289db9a0afa5557b7 |
+
+**Avalanche**
+
+| Pool         | Currency0                                           | Currency1                                           | Pool ID                                                            |
+| ------------ | --------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| USDt/USDC    | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0x5254fd9e465516b5c1c858f194db1b9181f771b08312ade3bebf42cbf85152e5 |
+| WETH.e/USDC  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0x802eb9e769cacc9bfdd76399ab2f507d471b942ebf204abeee65aa05f8780ae2 |
+| BTC.b/USDC   | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0xe4f0dcb676401dfbd6d5741ad7ad0e188d9ba7c4f4f59dd6394c767a8a1c2717 |
+| WAVAX/USDC   | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0xaf4907c5d66d75be7b13457f96ab03b776da0f1ff17479628b67983756384e55 |
+| WETH.e/USDt  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | 0xccb9658aa96ff2127971908eb627e94b9a93a78bce56e6c07de11cbf838a7518 |
+| BTC.b/USDt   | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | 0x3626c6929a97a9c4a6a45faae8c18c86d81d68eaf5a4c607ce098245fcae6f9d |
+| USDt/WAVAX   | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x758a05b2e15ef37683f8235f605b8ffe187fb4dd3884a68b337289303dcdad57 |
+| BTC.b/WETH.e | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | 0xc10c2e834557297ade3a1ae977bec943a7b890a10b054b640f9f4db6de37cc96 |
+| WETH.e/WAVAX | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x2bed16890ae7698aac4f8f7e24fa56d6262f9a14550383748bc837bb4e581471 |
+| BTC.b/WAVAX  | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x21ad0779f58efb1799d21d78b658e6f76c758beefd7ecaf37055b8d590008cfe |
 
 ## Audits
 
