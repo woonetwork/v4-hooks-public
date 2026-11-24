@@ -136,13 +136,14 @@ price age, no age spread and a 10,000 USDC per-swap cap, and the deployer
 - **Base**: the gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on
   2026-11-04. Ownership is pending to the WOOFi 3/6 Safe `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must
   call `acceptOwnership`.
-- **Arbitrum**: deployed open on 2026-11-24. The deployer stays owner until ownership moves to the WOOFi Safe on
-  every chain at once.
+- **Arbitrum, Optimism**: deployed open on 2026-11-24. The deployer stays owner until ownership moves to the WOOFi
+  Safe on every chain at once.
 
 | Network  | Hook                                       | Gateway                                    | Commit Hash | Date       |
 | -------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
 | Base     | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
 | Arbitrum | 0x772d41Ff3325b5457be90cD79f0dD5C56Be12888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 7e9d478     | 2026-11-24 |
+| Optimism | 0x77181D2d7B3b116Bb4bdF8c897416A28b9412888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 45b4138     | 2026-11-24 |
 
 #### Pools
 
@@ -170,6 +171,21 @@ Every pool uses fee 0 and `tickSpacing` 1.
 | WBTC/WETH | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | 0xa407e1738ff08f456e91e5836935df5ba914a55e72aa69b250cba609ff8967ff |
 | WETH/ARB  | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | 0x7fc8d571446f261f4b590376cb00e5b785c5fbd157f9eb33d52ff616cb5eef2f |
 | WBTC/ARB  | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | 0xfd35b830c170c913f736909a2f8e5d5d7bf6ab8857f5408c69735e58effd8a26 |
+
+**Optimism**
+
+| Pool      | Currency0                                         | Currency1                                         | Pool ID                                                            |
+| --------- | ------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| USDC/USDT | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0x7907e1dacf8274f3d3d0ed27257aa6a2ae9549b58cc0d5ff2d419cda74f47000 |
+| USDC/WETH | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | WETH `0x4200000000000000000000000000000000000006` | 0x50ffd38427d1de5874c446c176f19c41d6057fcd26e2e49db7e680394afaad26 |
+| USDC/WBTC | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0x87a8409d31c614e90e7d7180053b61e7e124155420add7a58828678895039c03 |
+| USDC/OP   | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | OP `0x4200000000000000000000000000000000000042`   | 0x78cfb2c20fc5489647d4dffeffd5911109e9f9cf77567baa6fe554500304c044 |
+| WETH/USDT | WETH `0x4200000000000000000000000000000000000006` | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0xe07f5fb86c90ef0e0f3e2310806de7ef116db24c8214525b0ba665abe0672469 |
+| WBTC/USDT | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0xa30dae83942eb3dd5496e742573d6e716cc3f8f661d3230206756228a6adb05a |
+| OP/USDT   | OP `0x4200000000000000000000000000000000000042`   | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0x62df15c809c773c7c262ef12d8910723199bc98cb6e9f264ebd88e9145e88167 |
+| WETH/WBTC | WETH `0x4200000000000000000000000000000000000006` | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0x99050e550600033e56a387b05ec3f7353fbc07f6ed3015a2c91d69bad3748ee2 |
+| WETH/OP   | WETH `0x4200000000000000000000000000000000000006` | OP `0x4200000000000000000000000000000000000042`   | 0x697e2250c4f0306f7c56a89ea1b227be32a8b960c2b4d4aa57a8caa8dd6b3b70 |
+| OP/WBTC   | OP `0x4200000000000000000000000000000000000042`   | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0xe1e207c3dccab617a8dc09017dfbf33821aa27cd9539ec2e9a84cee10952af9e |
 
 ## Audits
 
