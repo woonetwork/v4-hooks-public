@@ -127,25 +127,49 @@ Pools initialized on the Ethereum hook. Every pool uses the dynamic-fee flag (`0
 
 ### WOOFiAggregator
 
-The hook calls WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4`) through a WOOFi-owned WOOFiGateway.
-The gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on 2026-11-04
-with a 90s max price age, no age spread and a 10,000 USDC per-swap cap; the deployer
-`0xc031C368b51c28266396273b0C6ce2489b00969d` is a pauser. Ownership is pending to the WOOFi 3/6 Safe
-`0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must call `acceptOwnership`.
+The hook calls WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4` on every chain) through a WOOFi-owned
+WOOFiGateway. The gateway has the same address on every chain (same deployer, CREATE2 salt and bytecode); the hook's
+address commits to the chain's PoolManager, so it differs per chain. On every chain the gateway runs with a 90s max
+price age, no age spread and a 10,000 USDC per-swap cap, and the deployer
+`0xc031C368b51c28266396273b0C6ce2489b00969d` is a pauser.
 
-| Network | Hook                                       | Gateway                                    | Commit Hash | Date       |
-| ------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
-| Base    | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
+- **Base**: the gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on
+  2026-11-04. Ownership is pending to the WOOFi 3/6 Safe `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must
+  call `acceptOwnership`.
+- **Arbitrum**: deployed open on 2026-11-24. The deployer stays owner until ownership moves to the WOOFi Safe on
+  every chain at once.
+
+| Network  | Hook                                       | Gateway                                    | Commit Hash | Date       |
+| -------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
+| Base     | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
+| Arbitrum | 0x772d41Ff3325b5457be90cD79f0dD5C56Be12888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 7e9d478     | 2026-11-24 |
 
 #### Pools
 
 Every pool uses fee 0 and `tickSpacing` 1.
+
+**Base**
 
 | Pool       | Currency0                                         | Currency1                                          | Pool ID                                                            |
 | ---------- | ------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------ |
 | WETH/USDC  | WETH `0x4200000000000000000000000000000000000006` | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`  | 0xe73820f374359d2e767612877d21d5e41bf1f198453379b8458a57f869cb6f2b |
 | USDC/cbBTC | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | cbBTC `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | 0xd1370c843c9f6e4a6c252151d2571dacc0adaa99bbb24742df8b0178c0126122 |
 | WETH/cbBTC | WETH `0x4200000000000000000000000000000000000006` | cbBTC `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | 0x4e44800646ea42d88f50899515c39743af0f1472c3c6b532182cc80be9090323 |
+
+**Arbitrum**
+
+| Pool      | Currency0                                         | Currency1                                        | Pool ID                                                            |
+| --------- | ------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
+| USDC/USDT | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0xffc2d2e224d13001c7c80a56a4919be8c89258280aa8ddf52a12a1342f155008 |
+| WETH/USDC | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 0x8e3e7a765f7b09a4a3df9d0261f985a9f3b01006fbf890dd4e72b4348bbdc106 |
+| WBTC/USDC | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 0xd9891bcf814f3321c4bb31225e81a7ee7073d35cc1238c14fe8207f00d0154dc |
+| ARB/USDC  | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 0xa724bb202455b421871a3fdcb794330a2cc6f12daf661d51f39cbb6a95e22dd3 |
+| WETH/USDT | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0x32fde2cd8bd1b28ab6a6958d50b350b83f27d0ca68814231daec645ec0f55261 |
+| WBTC/USDT | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0x384d708ec222dbdc440b8f38839fd5471fb0eb9825b3cea2aab20ffe7965b8d2 |
+| ARB/USDT  | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0x93c8dfbfb82a17a6054a1ac900f4ac8a5a827629a7155b59cf9a87d4d7d04731 |
+| WBTC/WETH | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | 0xa407e1738ff08f456e91e5836935df5ba914a55e72aa69b250cba609ff8967ff |
+| WETH/ARB  | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | 0x7fc8d571446f261f4b590376cb00e5b785c5fbd157f9eb33d52ff616cb5eef2f |
+| WBTC/ARB  | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | 0xfd35b830c170c913f736909a2f8e5d5d7bf6ab8857f5408c69735e58effd8a26 |
 
 ## Audits
 
