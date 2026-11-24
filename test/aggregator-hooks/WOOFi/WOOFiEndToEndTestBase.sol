@@ -31,6 +31,16 @@ struct ExactInputSingleParams {
     bytes hookData;
 }
 
+/// @dev V4Router.ExactInputSingleParams as deployed in Universal Router V2.1.x, which adds a per-hop price limit
+struct ExactInputSingleParamsV2_1 {
+    PoolKey poolKey;
+    bool zeroForOne;
+    uint128 amountIn;
+    uint128 amountOutMinimum;
+    uint256 minHopPriceX36;
+    bytes hookData;
+}
+
 struct QuoteExactSingleParams {
     PoolKey poolKey;
     bool zeroForOne;
@@ -47,7 +57,8 @@ interface IV4Quoter {
 /// @notice End-to-end on a chain fork: deploy with the chain's production script (hook salt mined with
 ///         `cast create2` for the 0x77 ID), take gateway ownership the way the script leaves it, then trade the way
 ///         users do: Permit2 + Universal Router (V4_SWAP), quoted through Uniswap's V4Quoter. Chain tests supply the
-///         script, the live Uniswap contracts and the trades.
+///         script, the live Uniswap contracts (Universal Router V2.0, or V2.1.x where the chain has no V2.0) and the
+///         trades.
 /// @dev `FORK_RPC_URL_<chain id>` and optional `FORK_BLOCK_NUMBER_<chain id>`; skips when the RPC is unset. Needs
 ///      `cast` (ffi).
 abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
@@ -81,6 +92,11 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
     function _newScript() internal virtual returns (WOOFiDeployScript);
 
     function _universalRouter() internal pure virtual returns (IUniversalRouter);
+
+    /// @dev Whether `_universalRouter` is V2.1.x, whose exact-in params carry `minHopPriceX36`
+    function _routerIsV2_1() internal pure virtual returns (bool) {
+        return false;
+    }
 
     function _v4Quoter() internal pure virtual returns (IV4Quoter);
 
@@ -179,15 +195,26 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
         returns (uint256 gasUsed)
     {
         bytes[] memory params = new bytes[](3);
-        params[0] = abi.encode(
-            ExactInputSingleParams({
-                poolKey: _key(tokenIn, tokenOut),
-                zeroForOne: tokenIn < tokenOut,
-                amountIn: uint128(amountIn),
-                amountOutMinimum: uint128(minOut),
-                hookData: ""
-            })
-        );
+        params[0] = _routerIsV2_1()
+            ? abi.encode(
+                ExactInputSingleParamsV2_1({
+                    poolKey: _key(tokenIn, tokenOut),
+                    zeroForOne: tokenIn < tokenOut,
+                    amountIn: uint128(amountIn),
+                    amountOutMinimum: uint128(minOut),
+                    minHopPriceX36: 0,
+                    hookData: ""
+                })
+            )
+            : abi.encode(
+                ExactInputSingleParams({
+                    poolKey: _key(tokenIn, tokenOut),
+                    zeroForOne: tokenIn < tokenOut,
+                    amountIn: uint128(amountIn),
+                    amountOutMinimum: uint128(minOut),
+                    hookData: ""
+                })
+            );
         params[1] = abi.encode(Currency.wrap(tokenIn), amountIn);
         params[2] = abi.encode(Currency.wrap(tokenOut), minOut);
         bytes[] memory inputs = new bytes[](1);
