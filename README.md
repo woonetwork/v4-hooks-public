@@ -130,14 +130,14 @@ Pools initialized on the Ethereum hook. Every pool uses the dynamic-fee flag (`0
 The hook calls WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4` on every chain) through a WOOFi-owned
 WOOFiGateway. The gateway has the same address on every chain (same deployer, CREATE2 salt and bytecode); the hook's
 address commits to the chain's PoolManager, so it differs per chain. On every chain the gateway runs with a 90s max
-price age, no age spread and a 10,000 USDC per-swap cap, and the deployer
-`0xc031C368b51c28266396273b0C6ce2489b00969d` is a pauser.
+price age, no age spread and a per-swap cap of 10,000 of WooPP's quote token (USDC; on BNB Chain USDT, which has 18
+decimals), and the deployer `0xc031C368b51c28266396273b0C6ce2489b00969d` is a pauser.
 
 - **Base**: the gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on
   2026-11-04. Ownership is pending to the WOOFi 3/6 Safe `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must
   call `acceptOwnership`.
-- **Arbitrum, Optimism, Polygon, Avalanche**: deployed open on 2026-11-24. The deployer stays owner until ownership
-  moves to the WOOFi Safe on every chain at once.
+- **Arbitrum, Optimism, Polygon, Avalanche, BNB Chain**: deployed open on 2026-11-24. The deployer stays owner until
+  ownership moves to the WOOFi Safe on every chain at once.
 
 | Network   | Hook                                       | Gateway                                    | Commit Hash | Date       |
 | --------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
@@ -146,6 +146,7 @@ price age, no age spread and a 10,000 USDC per-swap cap, and the deployer
 | Optimism  | 0x77181D2d7B3b116Bb4bdF8c897416A28b9412888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 45b4138     | 2026-11-24 |
 | Polygon   | 0x77D1BdAaa32572D5Ea301dabE6AEe8C03e162888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 4954c12     | 2026-11-24 |
 | Avalanche | 0x77Ce1Bcb2bCCA5fB6677fcd9DeB68A7B64C72888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | dfa59fd     | 2026-11-24 |
+| BNB Chain | 0x774791c6557d3cE1FcDDc8f29D8a8F5f945C2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | e4998da     | 2026-11-24 |
 
 #### Pools
 
@@ -218,6 +219,21 @@ Every pool uses fee 0 and `tickSpacing` 1.
 | BTC.b/WETH.e | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | 0xc10c2e834557297ade3a1ae977bec943a7b890a10b054b640f9f4db6de37cc96 |
 | WETH.e/WAVAX | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x2bed16890ae7698aac4f8f7e24fa56d6262f9a14550383748bc837bb4e581471 |
 | BTC.b/WAVAX  | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x21ad0779f58efb1799d21d78b658e6f76c758beefd7ecaf37055b8d590008cfe |
+
+**BNB Chain**
+
+| Pool      | Currency0                                         | Currency1                                         | Pool ID                                                            |
+| --------- | ------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| USDT/USDC | USDT `0x55d398326f99059fF775485246999027B3197955` | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | 0xa18df23e3ec48d36e3f44d6404ee7d82967c3bf7c7ded45baffae3c6a9d40498 |
+| USDT/WBNB | USDT `0x55d398326f99059fF775485246999027B3197955` | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0x2ae95cd4eb778a04aca1c573429a798f711e0a8cef70b18a81360942c88980ba |
+| ETH/USDT  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | USDT `0x55d398326f99059fF775485246999027B3197955` | 0x41511676a341449fba863eb864057c14fc1c5a5f2d4e5cbe6d6f46b596d053c2 |
+| USDT/BTCB | USDT `0x55d398326f99059fF775485246999027B3197955` | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | 0x8a63cedf5fa8c33251127d973efb0de78a958b3510e19c0b204c02b2f945f0db |
+| USDC/WBNB | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0xa761fd2aa250d9aaa2432335ca1fc3d6e0bbada3322936eff71fd8b84c1fff1e |
+| ETH/USDC  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | 0xde033ce6fd99cec396a0e1509c9b1b5eab7fd0ef645abd2e539949128fc08cce |
+| BTCB/USDC | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | 0x8f3c69d6bce545b8a99baf40ef3daee893982d1ab800fd8eb256a0f3c051f68e |
+| ETH/WBNB  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0x6ce9de8ae0073494e20f303e9d04f887419c1c9e0f2d04b1754749ab3235f274 |
+| BTCB/WBNB | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0xd8ca39dbd1c0db23811247ad8a5234951cbb874680cbca90fd6b31ad0a4d5fef |
+| ETH/BTCB  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | 0x0d2a1308ac0f848de53def5863b677299a0c6bc841f0fa4ddcb31ef950a276ec |
 
 ## Audits
 
