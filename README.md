@@ -136,14 +136,15 @@ price age, no age spread and a 10,000 USDC per-swap cap, and the deployer
 - **Base**: the gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on
   2026-11-04. Ownership is pending to the WOOFi 3/6 Safe `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must
   call `acceptOwnership`.
-- **Arbitrum, Optimism**: deployed open on 2026-11-24. The deployer stays owner until ownership moves to the WOOFi
-  Safe on every chain at once.
+- **Arbitrum, Optimism, Polygon**: deployed open on 2026-11-24. The deployer stays owner until ownership moves to the
+  WOOFi Safe on every chain at once.
 
 | Network  | Hook                                       | Gateway                                    | Commit Hash | Date       |
 | -------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
 | Base     | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
 | Arbitrum | 0x772d41Ff3325b5457be90cD79f0dD5C56Be12888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 7e9d478     | 2026-11-24 |
 | Optimism | 0x77181D2d7B3b116Bb4bdF8c897416A28b9412888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 45b4138     | 2026-11-24 |
+| Polygon  | 0x77D1BdAaa32572D5Ea301dabE6AEe8C03e162888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 4954c12     | 2026-11-24 |
 
 #### Pools
 
@@ -186,6 +187,21 @@ Every pool uses fee 0 and `tickSpacing` 1.
 | WETH/WBTC | WETH `0x4200000000000000000000000000000000000006` | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0x99050e550600033e56a387b05ec3f7353fbc07f6ed3015a2c91d69bad3748ee2 |
 | WETH/OP   | WETH `0x4200000000000000000000000000000000000006` | OP `0x4200000000000000000000000000000000000042`   | 0x697e2250c4f0306f7c56a89ea1b227be32a8b960c2b4d4aa57a8caa8dd6b3b70 |
 | OP/WBTC   | OP `0x4200000000000000000000000000000000000042`   | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0xe1e207c3dccab617a8dc09017dfbf33821aa27cd9539ec2e9a84cee10952af9e |
+
+**Polygon**
+
+| Pool        | Currency0                                           | Currency1                                           | Pool ID                                                            |
+| ----------- | --------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| USDC.e/USDC | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | 0xb6f9d83e33b84cf4af06cc47c2f06d8a412ea2e2281a7788f1b6411e16297734 |
+| USDC/USDT   | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0xf031c9151e7633c5c2494c4eed36862ea520cf56e27a146551596a1f7fa85062 |
+| USDC/WETH   | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0xf349fc3f8f762f692d2aa57ce3638b69a284b480010978123fe9e45e08640b40 |
+| WBTC/USDC   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | 0x9b3e1126057236211a06e4cf7dbe83c4fba6d73d665d6c4ec3d677029e75bbe1 |
+| USDC.e/USDT | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0x1877f8902f93cc18f606c37647f5e1665e3b0b4be319959d4f5907086a1f0277 |
+| USDC.e/WETH | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0x4bcc49770690b3df9cc4bdbaa91b59596528079dbd2d86227c733e748c7805ab |
+| WBTC/USDC.e | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | 0xe8d2efee980067b30515d8e2099a47eabdbad25a9cbf02ce0102ed5a28ca4593 |
+| WETH/USDT   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0xf5b6a154596b85ee8c2645cd6ce4ba18480cab32f28cd24c84582d64c40f52c9 |
+| WBTC/USDT   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0x5c0f9249447542cf2e168b24eb78b2b20298f3a9cc2f6fe7866b592b1ddef5d8 |
+| WBTC/WETH   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0x3f9c4ce080e92b15eccf1436dfa55cb3c8bd7ae14c7ff2d289db9a0afa5557b7 |
 
 ## Audits
 
