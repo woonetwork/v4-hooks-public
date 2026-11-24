@@ -75,7 +75,6 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
 
     uint256 constant MAX_PRICE_AGE = 120;
     uint256 constant SPREAD_PER_SECOND = 1e13; // 0.1 bp per second
-    uint256 constant MAX_NOTIONAL_PER_SWAP = 50_000e6;
 
     WOOFiDeployScript script;
     WOOFiGateway gateway;
@@ -100,6 +99,11 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
 
     function _v4Quoter() internal pure virtual returns (IV4Quoter);
 
+    /// @dev 50,000 of WooPP's quote token, in its decimals: 6 for USDC on most chains
+    function _maxNotionalPerSwap() internal pure virtual returns (uint256) {
+        return 50_000e6;
+    }
+
     /// @dev A liquid trade for the slippage and pause tests
     function _referenceTrade() internal pure virtual returns (address tokenIn, address tokenOut, uint256 amountIn);
 
@@ -121,7 +125,7 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
             hookSalt: _mineHookSalt(script.hookInitCodeHash(deployer)),
             maxPriceAge: MAX_PRICE_AGE,
             spreadPerSecond: SPREAD_PER_SECOND,
-            maxNotionalPerSwap: MAX_NOTIONAL_PER_SWAP,
+            maxNotionalPerSwap: _maxNotionalPerSwap(),
             pausers: pausers
         });
         (gateway, hook) = script.deploy(config, deployer);
@@ -253,7 +257,7 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
         assertEq(gateway.pendingOwner(), address(0), "no ownership handoff left pending");
         assertEq(gateway.maxPriceAge(), MAX_PRICE_AGE);
         assertEq(gateway.spreadPerSecond(), SPREAD_PER_SECOND);
-        assertEq(gateway.maxNotionalPerSwap(), MAX_NOTIONAL_PER_SWAP);
+        assertEq(gateway.maxNotionalPerSwap(), _maxNotionalPerSwap());
         assertTrue(gateway.isPauser(pauser));
 
         address[] memory tokens = script.tokens();
@@ -282,7 +286,7 @@ abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
             hookSalt: _mineHookSalt(script.hookInitCodeHash(otherDeployer)),
             maxPriceAge: MAX_PRICE_AGE,
             spreadPerSecond: SPREAD_PER_SECOND,
-            maxNotionalPerSwap: MAX_NOTIONAL_PER_SWAP,
+            maxNotionalPerSwap: _maxNotionalPerSwap(),
             pausers: new address[](0)
         });
         (WOOFiGateway reused, WOOFiAggregator otherHook) = script.deploy(config, otherDeployer);
