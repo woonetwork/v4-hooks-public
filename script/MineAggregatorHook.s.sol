@@ -21,6 +21,7 @@ import {
 import {UniswapV2Aggregator} from "../src/aggregator-hooks/implementations/UniswapV2/UniswapV2Aggregator.sol";
 import {UniswapXAggregator} from "../src/aggregator-hooks/implementations/UniswapX/UniswapXAggregator.sol";
 import {LitePSMAggregator} from "../src/aggregator-hooks/implementations/LitePSM/LitePSMAggregator.sol";
+import {WOOFiAggregator} from "../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
 
 /// @notice Mines an address for an aggregator hook using AggregatorHookMiner
 /// @dev This script finds a salt that produces a hook address with the correct flags and first byte identifier
@@ -37,6 +38,7 @@ contract MineAggregatorHookScript is Script {
     uint8 constant ID_LITEPSM = 0x95;
     uint8 constant ID_UNISWAP_V2 = 0x02;
     uint8 constant ID_UNISWAPX = 0xDC;
+    uint8 constant ID_WOOFI = 0x77;
 
     function run() public view {
         // Read salt offset from environment variable (default to 0)
@@ -65,6 +67,7 @@ contract MineAggregatorHookScript is Script {
         // 0x95 = LitePSM
         // 0x02 = Uniswap V2
         // 0xDC = UniswapX
+        // 0x77 = WOOFi (WooPPV2)
 
         uint8 firstByte = uint8(vm.envUint("PROTOCOL_ID"));
         bytes memory creationCode;
@@ -92,6 +95,8 @@ contract MineAggregatorHookScript is Script {
             creationCode = type(UniswapV2Aggregator).creationCode;
         } else if (firstByte == ID_UNISWAPX) {
             creationCode = type(UniswapXAggregator).creationCode;
+        } else if (firstByte == ID_WOOFI) {
+            creationCode = type(WOOFiAggregator).creationCode;
         } else {
             revert("Invalid protocol ID");
         }

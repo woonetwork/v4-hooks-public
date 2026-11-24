@@ -125,6 +125,116 @@ Pools initialized on the Ethereum hook. Every pool uses the dynamic-fee flag (`0
 | -------- | ------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------ | ---------- |
 | ETH/USDC | ETH `0x0000000000000000000000000000000000000000` | USDC `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | 0x98316e8405502774a5d0a0761276b5d26505a8195c1905169864008d5e7a3eea | 2026-10-13 |
 
+### WOOFiAggregator
+
+The hook calls WooPPV2 (`0x5520385bFcf07Ec87C4c53A7d8d65595Dff69FA4` on every chain) through a WOOFi-owned
+WOOFiGateway. The gateway has the same address on every chain (same deployer, CREATE2 salt and bytecode); the hook's
+address commits to the chain's PoolManager, so it differs per chain. On every chain the gateway runs with a 90s max
+price age, no age spread and a per-swap cap of 10,000 of WooPP's quote token (USDC; on BNB Chain USDT, which has 18
+decimals), and the deployer `0xc031C368b51c28266396273b0C6ce2489b00969d` is a pauser.
+
+- **Base**: the gateway was deployed closed (max price age, spread and per-swap notional cap all 0) and opened on
+  2026-11-04. Ownership is pending to the WOOFi 3/6 Safe `0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2`, which must
+  call `acceptOwnership`.
+- **Arbitrum, Optimism, Polygon, Avalanche, BNB Chain**: deployed open on 2026-11-24. The deployer stays owner until
+  ownership moves to the WOOFi Safe on every chain at once.
+
+| Network   | Hook                                       | Gateway                                    | Commit Hash | Date       |
+| --------- | ------------------------------------------ | ------------------------------------------ | ----------- | ---------- |
+| Base      | 0x77132a6b5760651447DA262B1180430Ae84e2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 41adf20     | 2026-11-04 |
+| Arbitrum  | 0x772d41Ff3325b5457be90cD79f0dD5C56Be12888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 7e9d478     | 2026-11-24 |
+| Optimism  | 0x77181D2d7B3b116Bb4bdF8c897416A28b9412888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 45b4138     | 2026-11-24 |
+| Polygon   | 0x77D1BdAaa32572D5Ea301dabE6AEe8C03e162888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | 4954c12     | 2026-11-24 |
+| Avalanche | 0x77Ce1Bcb2bCCA5fB6677fcd9DeB68A7B64C72888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | dfa59fd     | 2026-11-24 |
+| BNB Chain | 0x774791c6557d3cE1FcDDc8f29D8a8F5f945C2888 | 0xB2781074F5da0b30f9004ed7eCf1c3933477AE42 | e4998da     | 2026-11-24 |
+
+#### Pools
+
+Every pool uses fee 0 and `tickSpacing` 1.
+
+**Base**
+
+| Pool       | Currency0                                         | Currency1                                          | Pool ID                                                            |
+| ---------- | ------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------ |
+| WETH/USDC  | WETH `0x4200000000000000000000000000000000000006` | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`  | 0xe73820f374359d2e767612877d21d5e41bf1f198453379b8458a57f869cb6f2b |
+| USDC/cbBTC | USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | cbBTC `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | 0xd1370c843c9f6e4a6c252151d2571dacc0adaa99bbb24742df8b0178c0126122 |
+| WETH/cbBTC | WETH `0x4200000000000000000000000000000000000006` | cbBTC `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | 0x4e44800646ea42d88f50899515c39743af0f1472c3c6b532182cc80be9090323 |
+
+**Arbitrum**
+
+| Pool      | Currency0                                         | Currency1                                        | Pool ID                                                            |
+| --------- | ------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ |
+| USDC/USDT | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0xffc2d2e224d13001c7c80a56a4919be8c89258280aa8ddf52a12a1342f155008 |
+| WETH/USDC | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 0x8e3e7a765f7b09a4a3df9d0261f985a9f3b01006fbf890dd4e72b4348bbdc106 |
+| WBTC/USDC | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 0xd9891bcf814f3321c4bb31225e81a7ee7073d35cc1238c14fe8207f00d0154dc |
+| ARB/USDC  | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | USDC `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 0xa724bb202455b421871a3fdcb794330a2cc6f12daf661d51f39cbb6a95e22dd3 |
+| WETH/USDT | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0x32fde2cd8bd1b28ab6a6958d50b350b83f27d0ca68814231daec645ec0f55261 |
+| WBTC/USDT | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0x384d708ec222dbdc440b8f38839fd5471fb0eb9825b3cea2aab20ffe7965b8d2 |
+| ARB/USDT  | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | USDT `0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9` | 0x93c8dfbfb82a17a6054a1ac900f4ac8a5a827629a7155b59cf9a87d4d7d04731 |
+| WBTC/WETH | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | 0xa407e1738ff08f456e91e5836935df5ba914a55e72aa69b250cba609ff8967ff |
+| WETH/ARB  | WETH `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | 0x7fc8d571446f261f4b590376cb00e5b785c5fbd157f9eb33d52ff616cb5eef2f |
+| WBTC/ARB  | WBTC `0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f` | ARB `0x912CE59144191C1204E64559FE8253a0e49E6548`  | 0xfd35b830c170c913f736909a2f8e5d5d7bf6ab8857f5408c69735e58effd8a26 |
+
+**Optimism**
+
+| Pool      | Currency0                                         | Currency1                                         | Pool ID                                                            |
+| --------- | ------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| USDC/USDT | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0x7907e1dacf8274f3d3d0ed27257aa6a2ae9549b58cc0d5ff2d419cda74f47000 |
+| USDC/WETH | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | WETH `0x4200000000000000000000000000000000000006` | 0x50ffd38427d1de5874c446c176f19c41d6057fcd26e2e49db7e680394afaad26 |
+| USDC/WBTC | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0x87a8409d31c614e90e7d7180053b61e7e124155420add7a58828678895039c03 |
+| USDC/OP   | USDC `0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85` | OP `0x4200000000000000000000000000000000000042`   | 0x78cfb2c20fc5489647d4dffeffd5911109e9f9cf77567baa6fe554500304c044 |
+| WETH/USDT | WETH `0x4200000000000000000000000000000000000006` | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0xe07f5fb86c90ef0e0f3e2310806de7ef116db24c8214525b0ba665abe0672469 |
+| WBTC/USDT | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0xa30dae83942eb3dd5496e742573d6e716cc3f8f661d3230206756228a6adb05a |
+| OP/USDT   | OP `0x4200000000000000000000000000000000000042`   | USDT `0x94b008aA00579c1307B0EF2c499aD98a8ce58e58` | 0x62df15c809c773c7c262ef12d8910723199bc98cb6e9f264ebd88e9145e88167 |
+| WETH/WBTC | WETH `0x4200000000000000000000000000000000000006` | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0x99050e550600033e56a387b05ec3f7353fbc07f6ed3015a2c91d69bad3748ee2 |
+| WETH/OP   | WETH `0x4200000000000000000000000000000000000006` | OP `0x4200000000000000000000000000000000000042`   | 0x697e2250c4f0306f7c56a89ea1b227be32a8b960c2b4d4aa57a8caa8dd6b3b70 |
+| OP/WBTC   | OP `0x4200000000000000000000000000000000000042`   | WBTC `0x68f180fcCe6836688e9084f035309E29Bf0A2095` | 0xe1e207c3dccab617a8dc09017dfbf33821aa27cd9539ec2e9a84cee10952af9e |
+
+**Polygon**
+
+| Pool        | Currency0                                           | Currency1                                           | Pool ID                                                            |
+| ----------- | --------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| USDC.e/USDC | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | 0xb6f9d83e33b84cf4af06cc47c2f06d8a412ea2e2281a7788f1b6411e16297734 |
+| USDC/USDT   | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0xf031c9151e7633c5c2494c4eed36862ea520cf56e27a146551596a1f7fa85062 |
+| USDC/WETH   | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0xf349fc3f8f762f692d2aa57ce3638b69a284b480010978123fe9e45e08640b40 |
+| WBTC/USDC   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDC `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`   | 0x9b3e1126057236211a06e4cf7dbe83c4fba6d73d665d6c4ec3d677029e75bbe1 |
+| USDC.e/USDT | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0x1877f8902f93cc18f606c37647f5e1665e3b0b4be319959d4f5907086a1f0277 |
+| USDC.e/WETH | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0x4bcc49770690b3df9cc4bdbaa91b59596528079dbd2d86227c733e748c7805ab |
+| WBTC/USDC.e | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDC.e `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` | 0xe8d2efee980067b30515d8e2099a47eabdbad25a9cbf02ce0102ed5a28ca4593 |
+| WETH/USDT   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0xf5b6a154596b85ee8c2645cd6ce4ba18480cab32f28cd24c84582d64c40f52c9 |
+| WBTC/USDT   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | USDT `0xc2132D05D31c914a87C6611C10748AEb04B58e8F`   | 0x5c0f9249447542cf2e168b24eb78b2b20298f3a9cc2f6fe7866b592b1ddef5d8 |
+| WBTC/WETH   | WBTC `0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6`   | WETH `0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619`   | 0x3f9c4ce080e92b15eccf1436dfa55cb3c8bd7ae14c7ff2d289db9a0afa5557b7 |
+
+**Avalanche**
+
+| Pool         | Currency0                                           | Currency1                                           | Pool ID                                                            |
+| ------------ | --------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| USDt/USDC    | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0x5254fd9e465516b5c1c858f194db1b9181f771b08312ade3bebf42cbf85152e5 |
+| WETH.e/USDC  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0x802eb9e769cacc9bfdd76399ab2f507d471b942ebf204abeee65aa05f8780ae2 |
+| BTC.b/USDC   | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0xe4f0dcb676401dfbd6d5741ad7ad0e188d9ba7c4f4f59dd6394c767a8a1c2717 |
+| WAVAX/USDC   | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | USDC `0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E`   | 0xaf4907c5d66d75be7b13457f96ab03b776da0f1ff17479628b67983756384e55 |
+| WETH.e/USDt  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | 0xccb9658aa96ff2127971908eb627e94b9a93a78bce56e6c07de11cbf838a7518 |
+| BTC.b/USDt   | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | 0x3626c6929a97a9c4a6a45faae8c18c86d81d68eaf5a4c607ce098245fcae6f9d |
+| USDt/WAVAX   | USDt `0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7`   | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x758a05b2e15ef37683f8235f605b8ffe187fb4dd3884a68b337289303dcdad57 |
+| BTC.b/WETH.e | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | 0xc10c2e834557297ade3a1ae977bec943a7b890a10b054b640f9f4db6de37cc96 |
+| WETH.e/WAVAX | WETH.e `0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB` | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x2bed16890ae7698aac4f8f7e24fa56d6262f9a14550383748bc837bb4e581471 |
+| BTC.b/WAVAX  | BTC.b `0x152b9d0FdC40C096757F570A51E494bd4b943E50`  | WAVAX `0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7`  | 0x21ad0779f58efb1799d21d78b658e6f76c758beefd7ecaf37055b8d590008cfe |
+
+**BNB Chain**
+
+| Pool      | Currency0                                         | Currency1                                         | Pool ID                                                            |
+| --------- | ------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| USDT/USDC | USDT `0x55d398326f99059fF775485246999027B3197955` | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | 0xa18df23e3ec48d36e3f44d6404ee7d82967c3bf7c7ded45baffae3c6a9d40498 |
+| USDT/WBNB | USDT `0x55d398326f99059fF775485246999027B3197955` | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0x2ae95cd4eb778a04aca1c573429a798f711e0a8cef70b18a81360942c88980ba |
+| ETH/USDT  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | USDT `0x55d398326f99059fF775485246999027B3197955` | 0x41511676a341449fba863eb864057c14fc1c5a5f2d4e5cbe6d6f46b596d053c2 |
+| USDT/BTCB | USDT `0x55d398326f99059fF775485246999027B3197955` | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | 0x8a63cedf5fa8c33251127d973efb0de78a958b3510e19c0b204c02b2f945f0db |
+| USDC/WBNB | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0xa761fd2aa250d9aaa2432335ca1fc3d6e0bbada3322936eff71fd8b84c1fff1e |
+| ETH/USDC  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | 0xde033ce6fd99cec396a0e1509c9b1b5eab7fd0ef645abd2e539949128fc08cce |
+| BTCB/USDC | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` | 0x8f3c69d6bce545b8a99baf40ef3daee893982d1ab800fd8eb256a0f3c051f68e |
+| ETH/WBNB  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0x6ce9de8ae0073494e20f303e9d04f887419c1c9e0f2d04b1754749ab3235f274 |
+| BTCB/WBNB | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | WBNB `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | 0xd8ca39dbd1c0db23811247ad8a5234951cbb874680cbca90fd6b31ad0a4d5fef |
+| ETH/BTCB  | ETH `0x2170Ed0880ac9A755fd29B2688956BD959F933F8`  | BTCB `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` | 0x0d2a1308ac0f848de53def5863b677299a0c6bc841f0fa4ddcb31ef950a276ec |
+
 ## Audits
 
 | Name             | Date       | Report                                                     |
