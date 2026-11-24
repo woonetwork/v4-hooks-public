@@ -11,8 +11,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {WOOFiAggregator} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiAggregator.sol";
 import {WOOFiGateway} from "../../../src/aggregator-hooks/implementations/WOOFi/WOOFiGateway.sol";
-import {IWooracle} from "../../../src/aggregator-hooks/implementations/WOOFi/interfaces/IWooPPV2.sol";
-import {DeployWOOFiBaseScript} from "../../../script/deploy/woofi/DeployWOOFiBase.s.sol";
+import {WOOFiDeployScript} from "../../../script/deploy/woofi/WOOFiDeployScript.sol";
 import {WOOFiForkUtils} from "./WOOFiForkUtils.sol";
 
 interface IUniversalRouter {
@@ -23,7 +22,7 @@ interface IPermit2 {
     function approve(address token, address spender, uint160 amount, uint48 expiration) external;
 }
 
-/// @dev V4Router.ExactInputSingleParams as deployed in the Base Universal Router
+/// @dev V4Router.ExactInputSingleParams as deployed in Universal Router V2.0
 struct ExactInputSingleParams {
     PoolKey poolKey;
     bool zeroForOne;
@@ -45,23 +44,18 @@ interface IV4Quoter {
         returns (uint256 amountOut, uint256 gasEstimate);
 }
 
-/// @notice End-to-end on a Base fork: deploy with the production script (hook salt mined with `cast create2` for
-///         the 0x77 ID), accept ownership as the Safe, then trade the way users do: Permit2 + Universal Router
-///         (V4_SWAP), quoted through Uniswap's V4Quoter.
-/// @dev `FORK_RPC_URL_8453` and optional `FORK_BLOCK_NUMBER_8453`; skips when the RPC is unset. Needs `cast` (ffi).
-contract WOOFiEndToEndForkTest is WOOFiForkUtils {
+/// @notice End-to-end on a chain fork: deploy with the chain's production script (hook salt mined with
+///         `cast create2` for the 0x77 ID), take gateway ownership the way the script leaves it, then trade the way
+///         users do: Permit2 + Universal Router (V4_SWAP), quoted through Uniswap's V4Quoter. Chain tests supply the
+///         script, the live Uniswap contracts and the trades.
+/// @dev `FORK_RPC_URL_<chain id>` and optional `FORK_BLOCK_NUMBER_<chain id>`; skips when the RPC is unset. Needs
+///      `cast` (ffi).
+abstract contract WOOFiEndToEndTestBase is WOOFiForkUtils {
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
 
-    IUniversalRouter constant UNIVERSAL_ROUTER = IUniversalRouter(0x6fF5693b99212Da76ad316178A184AB56D299b43);
-    IV4Quoter constant V4_QUOTER = IV4Quoter(0x0d5e0F971ED27FBfF6c2837bf31316121532048D);
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-    address constant WOOFI_SAFE = 0x682F676389BDE27dB6C8a3d8bC6AF0B021E9FfF2;
-
-    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant WETH = 0x4200000000000000000000000000000000000006;
-    address constant CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
 
     uint8 constant V4_SWAP = 0x10;
     uint8 constant SWAP_EXACT_IN_SINGLE = 0x06;
@@ -72,28 +66,42 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
     uint256 constant SPREAD_PER_SECOND = 1e13; // 0.1 bp per second
     uint256 constant MAX_NOTIONAL_PER_SWAP = 50_000e6;
 
-    DeployWOOFiBaseScript script;
+    WOOFiDeployScript script;
     WOOFiGateway gateway;
     WOOFiAggregator hook;
+    /// @dev The gateway owner once deployed: whoever the script offers ownership to (accepted here), else the deployer
+    address owner;
 
     address deployer = makeAddr("woofi_deployer");
     address pauser = makeAddr("woofi_pauser");
     address alice = makeAddr("woofi_e2e_alice");
 
+    function _chainId() internal pure virtual returns (uint256);
+
+    function _newScript() internal virtual returns (WOOFiDeployScript);
+
+    function _universalRouter() internal pure virtual returns (IUniversalRouter);
+
+    function _v4Quoter() internal pure virtual returns (IV4Quoter);
+
+    /// @dev A liquid trade for the slippage and pause tests
+    function _referenceTrade() internal pure virtual returns (address tokenIn, address tokenOut, uint256 amountIn);
+
     function setUp() public {
-        string memory rpcUrl = vm.envOr("FORK_RPC_URL_8453", string(""));
+        string memory chainId = vm.toString(_chainId());
+        string memory rpcUrl = vm.envOr(string.concat("FORK_RPC_URL_", chainId), string(""));
         if (bytes(rpcUrl).length == 0) {
             vm.skip(true);
             return;
         }
-        uint256 forkBlock = vm.envOr("FORK_BLOCK_NUMBER_8453", uint256(0));
+        uint256 forkBlock = vm.envOr(string.concat("FORK_BLOCK_NUMBER_", chainId), uint256(0));
         if (forkBlock > 0) vm.createSelectFork(rpcUrl, forkBlock);
         else vm.createSelectFork(rpcUrl);
 
-        script = new DeployWOOFiBaseScript();
+        script = _newScript();
         address[] memory pausers = new address[](1);
         pausers[0] = pauser;
-        DeployWOOFiBaseScript.Config memory config = DeployWOOFiBaseScript.Config({
+        WOOFiDeployScript.Config memory config = WOOFiDeployScript.Config({
             hookSalt: _mineHookSalt(script.hookInitCodeHash(deployer)),
             maxPriceAge: MAX_PRICE_AGE,
             spreadPerSecond: SPREAD_PER_SECOND,
@@ -102,22 +110,28 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
         });
         (gateway, hook) = script.deploy(config, deployer);
 
-        vm.prank(WOOFI_SAFE);
-        gateway.acceptOwnership();
+        owner = script.nextOwner();
+        if (owner == address(0)) {
+            owner = deployer;
+        } else {
+            vm.prank(owner);
+            gateway.acceptOwnership();
+        }
 
         address[] memory tokens = script.tokens();
+        address quoteToken = gateway.wooPP().quoteToken();
+        address[] memory bases = new address[](tokens.length - 1);
+        uint256 n;
         for (uint256 i; i < tokens.length; ++i) {
             deal(tokens[i], alice, 1e30);
             vm.startPrank(alice);
             IERC20(tokens[i]).forceApprove(address(PERMIT2), type(uint256).max);
-            PERMIT2.approve(tokens[i], address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
+            PERMIT2.approve(tokens[i], address(_universalRouter()), type(uint160).max, type(uint48).max);
             vm.stopPrank();
+            if (tokens[i] != quoteToken) bases[n++] = tokens[i];
         }
 
         // Trade at a known price age regardless of when the keeper last posted at the fork block
-        address[] memory bases = new address[](2);
-        bases[0] = WETH;
-        bases[1] = CBBTC;
         _setWooracleAge(gateway.wooPP().wooracle(), bases, 10);
     }
 
@@ -148,14 +162,15 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
     }
 
     function _quoterQuote(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256 amountOut) {
-        (amountOut,) = V4_QUOTER.quoteExactInputSingle(
-            QuoteExactSingleParams({
-                poolKey: _key(tokenIn, tokenOut),
-                zeroForOne: tokenIn < tokenOut,
-                exactAmount: uint128(amountIn),
-                hookData: ""
-            })
-        );
+        (amountOut,) = _v4Quoter()
+            .quoteExactInputSingle(
+                QuoteExactSingleParams({
+                    poolKey: _key(tokenIn, tokenOut),
+                    zeroForOne: tokenIn < tokenOut,
+                    exactAmount: uint128(amountIn),
+                    hookData: ""
+                })
+            );
     }
 
     /// @dev Exact-in single swap through the Universal Router, as an interface or aggregator would send it
@@ -178,9 +193,10 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
         bytes[] memory inputs = new bytes[](1);
         inputs[0] = abi.encode(abi.encodePacked(SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL), params);
 
+        IUniversalRouter router = _universalRouter();
         vm.prank(alice, alice);
         uint256 gasBefore = gasleft();
-        UNIVERSAL_ROUTER.execute(abi.encodePacked(V4_SWAP), inputs, block.timestamp + 60);
+        router.execute(abi.encodePacked(V4_SWAP), inputs, block.timestamp + 60);
         gasUsed = gasBefore - gasleft();
     }
 
@@ -204,8 +220,10 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
         assertEq(uint8(uint160(address(hook)) >> 152), 0x77, "hook ID byte");
         assertEq(uint160(address(hook)) & Hooks.ALL_HOOK_MASK, uint160(0x2888), "hook permission bits");
         assertEq(address(hook.gateway()), address(gateway));
+        assertEq(address(hook.poolManager()), address(script.poolManager()));
         assertEq(gateway.hook(), address(hook));
-        assertEq(gateway.owner(), WOOFI_SAFE, "Safe accepted ownership");
+        assertEq(gateway.owner(), owner, "gateway owner");
+        assertEq(gateway.pendingOwner(), address(0), "no ownership handoff left pending");
         assertEq(gateway.maxPriceAge(), MAX_PRICE_AGE);
         assertEq(gateway.spreadPerSecond(), SPREAD_PER_SECOND);
         assertEq(gateway.maxNotionalPerSwap(), MAX_NOTIONAL_PER_SWAP);
@@ -233,7 +251,7 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
         );
         assertTrue(ok && predicted.code.length > 0, "front-run deployment");
 
-        DeployWOOFiBaseScript.Config memory config = DeployWOOFiBaseScript.Config({
+        WOOFiDeployScript.Config memory config = WOOFiDeployScript.Config({
             hookSalt: _mineHookSalt(script.hookInitCodeHash(otherDeployer)),
             maxPriceAge: MAX_PRICE_AGE,
             spreadPerSecond: SPREAD_PER_SECOND,
@@ -243,43 +261,30 @@ contract WOOFiEndToEndForkTest is WOOFiForkUtils {
         (WOOFiGateway reused, WOOFiAggregator otherHook) = script.deploy(config, otherDeployer);
         assertEq(address(reused), predicted, "reused the front-run gateway");
         assertEq(reused.hook(), address(otherHook));
-        assertEq(reused.pendingOwner(), WOOFI_SAFE);
+        assertEq(reused.owner(), otherDeployer);
+        assertEq(reused.pendingOwner(), script.nextOwner());
     }
 
     // ── Trading through the Universal Router ───────────────────────────────────
 
-    function test_e2e_wethToUsdc() public {
-        _assertEndToEnd(WETH, USDC, 1e18);
-    }
-
-    function test_e2e_usdcToWeth() public {
-        _assertEndToEnd(USDC, WETH, 3000e6);
-    }
-
-    function test_e2e_usdcToCbbtc() public {
-        _assertEndToEnd(USDC, CBBTC, 5000e6);
-    }
-
-    function test_e2e_wethToCbbtc() public {
-        _assertEndToEnd(WETH, CBBTC, 1e18);
-    }
-
     function test_e2e_slippageProtection_reverts() public {
-        uint256 quoted = _quoterQuote(WETH, USDC, 1e18);
+        (address tokenIn, address tokenOut, uint256 amountIn) = _referenceTrade();
+        uint256 quoted = _quoterQuote(tokenIn, tokenOut, amountIn);
         vm.expectRevert();
-        _routerSwap(WETH, USDC, 1e18, quoted + 1);
+        _routerSwap(tokenIn, tokenOut, amountIn, quoted + 1);
     }
 
     function test_e2e_pausedGateway_quoterAndRouterRevert() public {
+        (address tokenIn, address tokenOut, uint256 amountIn) = _referenceTrade();
         vm.prank(pauser);
         gateway.pause();
         vm.expectRevert();
-        _quoterQuote(WETH, USDC, 1e18);
+        _quoterQuote(tokenIn, tokenOut, amountIn);
         vm.expectRevert();
-        _routerSwap(WETH, USDC, 1e18, 0);
+        _routerSwap(tokenIn, tokenOut, amountIn, 0);
 
-        vm.prank(WOOFI_SAFE);
+        vm.prank(owner);
         gateway.unpause();
-        _assertEndToEnd(WETH, USDC, 1e18);
+        _assertEndToEnd(tokenIn, tokenOut, amountIn);
     }
 }
